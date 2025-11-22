@@ -1,0 +1,967 @@
+{
+  "info": {
+    "name": "DevSponsor API",
+    "description": "Complete API collection for DevSponsor - A decentralized platform for project sponsorship and milestone-based payments",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "milestone_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "submilestone_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "contribution_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organization_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the API is running and healthy"
+          }
+        },
+        {
+          "name": "Detailed Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/detail",
+              "host": ["{{base_url}}"],
+              "path": ["health", "detail"]
+            },
+            "description": "Detailed health status of all services (database, redis, qdrant)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "GitHub OAuth Login",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/github",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "github"]
+            },
+            "description": "Redirect to GitHub OAuth. Open this URL in browser to authenticate."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get authenticated user information"
+          },
+          "response": []
+        },
+        {
+          "name": "Link Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletAddress\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb\",\n  \"signature\": \"0xsignature_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/link-wallet",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "link-wallet"]
+            },
+            "description": "Link a wallet address to the authenticated user"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout current user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('project_id', jsonData.project.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Web3 Dashboard Development\",\n  \"description\": \"Build a comprehensive Web3 dashboard with DeFi integrations\",\n  \"repositoryUrl\": \"https://github.com/username/web3-dashboard\",\n  \"tokenAddress\": \"0xUSDC_CONTRACT_ADDRESS\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/projects",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects"]
+            },
+            "description": "Create a new project (requires SPONSOR or ADMIN role)"
+          }
+        },
+        {
+          "name": "Get All Projects",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/projects?status=ACTIVE",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "description": "Filter by status: DRAFT, ACTIVE, COMPLETED, CANCELLED"
+                },
+                {
+                  "key": "sponsorId",
+                  "value": "",
+                  "description": "Filter by sponsor ID",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all projects with optional filters"
+          }
+        },
+        {
+          "name": "Get Project by ID",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/projects/{{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "{{project_id}}"]
+            },
+            "description": "Get detailed information about a specific project"
+          }
+        },
+        {
+          "name": "Fund Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"10000\",\n  \"token\": \"USDC\",\n  \"mode\": \"ESCROW\",\n  \"onchainTxHash\": \"0xtransaction_hash_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/projects/{{project_id}}/fund",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "{{project_id}}", "fund"]
+            },
+            "description": "Fund a project with ESCROW or YIELD mode"
+          }
+        },
+        {
+          "name": "Generate AI Milestones",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Generate milestones for a Web3 dashboard with wallet integration, DeFi protocol connections, and real-time data visualization\",\n  \"documentUrl\": \"https://example.com/project-requirements.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/projects/{{project_id}}/ai/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "{{project_id}}", "ai", "generate"]
+            },
+            "description": "Trigger AI-powered milestone generation for a project"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Milestones",
+      "item": [
+        {
+          "name": "Get Project Milestones",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/milestones/project/{{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "milestones", "project", "{{project_id}}"]
+            },
+            "description": "Get all milestones and sub-milestones for a project"
+          }
+        },
+        {
+          "name": "Claim Sub-Milestone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('submilestone_id', jsonData.subMilestone.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchUrl\": \"https://github.com/username/repo/tree/feature-branch\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/milestones/{{submilestone_id}}/claim",
+              "host": ["{{base_url}}"],
+              "path": ["api", "milestones", "{{submilestone_id}}", "claim"]
+            },
+            "description": "Claim a sub-milestone to work on (requires DEVELOPER role)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contributions",
+      "item": [
+        {
+          "name": "Get Project Contributions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/contributions/project/{{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contributions", "project", "{{project_id}}"]
+            },
+            "description": "Get all contributions for a project"
+          }
+        },
+        {
+          "name": "Get Contribution by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/contributions/{{contribution_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contributions", "{{contribution_id}}"]
+            },
+            "description": "Get detailed information about a specific contribution"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('organization_id', jsonData.organization.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Web3 Dev Team\",\n  \"description\": \"Building the future of decentralized applications\",\n  \"githubOrg\": \"web3-dev-team\",\n  \"website\": \"https://web3devteam.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/organizations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations"]
+            },
+            "description": "Create a new organization"
+          }
+        },
+        {
+          "name": "Get User Organizations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations"]
+            },
+            "description": "Get all organizations for the authenticated user"
+          }
+        },
+        {
+          "name": "Get Organization by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{organization_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{organization_id}}"]
+            },
+            "description": "Get detailed information about an organization"
+          }
+        },
+        {
+          "name": "Update Organization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Web3 Dev Team Updated\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{organization_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{organization_id}}"]
+            },
+            "description": "Update organization details"
+          }
+        },
+        {
+          "name": "Delete Organization",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{organization_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{organization_id}}"]
+            },
+            "description": "Delete an organization"
+          }
+        },
+        {
+          "name": "Invite Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"developer@example.com\",\n  \"role\": \"MEMBER\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{organization_id}}/invite",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{organization_id}}", "invite"]
+            },
+            "description": "Invite a member to the organization"
+          }
+        },
+        {
+          "name": "Accept Invite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/invites/:inviteId/accept",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "invites", ":inviteId", "accept"],
+              "variable": [
+                {
+                  "key": "inviteId",
+                  "value": "invite_id_here"
+                }
+              ]
+            },
+            "description": "Accept an organization invitation"
+          }
+        },
+        {
+          "name": "Get Organization Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{organization_id}}/members",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{organization_id}}", "members"]
+            },
+            "description": "Get all members of an organization"
+          }
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{organization_id}}/members/:memberId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{organization_id}}", "members", ":memberId"],
+              "variable": [
+                {
+                  "key": "memberId",
+                  "value": "member_id_here"
+                }
+              ]
+            },
+            "description": "Remove a member from the organization"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Funding",
+      "item": [
+        {
+          "name": "Get Funding Quote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"10000\",\n  \"token\": \"USDC\",\n  \"mode\": \"ESCROW\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/funding/{{project_id}}/quote",
+              "host": ["{{base_url}}"],
+              "path": ["api", "funding", "{{project_id}}", "quote"]
+            },
+            "description": "Get a funding quote with fees and estimated APY (for YIELD mode)"
+          }
+        },
+        {
+          "name": "Confirm Funding",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"10000\",\n  \"token\": \"USDC\",\n  \"mode\": \"ESCROW\",\n  \"txHash\": \"0xtransaction_hash_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/funding/{{project_id}}/confirm",
+              "host": ["{{base_url}}"],
+              "path": ["api", "funding", "{{project_id}}", "confirm"]
+            },
+            "description": "Confirm funding after on-chain deposit"
+          }
+        },
+        {
+          "name": "Add Additional Funds",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"5000\",\n  \"txHash\": \"0xtransaction_hash_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/funding/{{project_id}}/add-funds",
+              "host": ["{{base_url}}"],
+              "path": ["api", "funding", "{{project_id}}", "add-funds"]
+            },
+            "description": "Add additional funding to a project"
+          }
+        },
+        {
+          "name": "Get Remaining Funds",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/funding/{{project_id}}/remaining",
+              "host": ["{{base_url}}"],
+              "path": ["api", "funding", "{{project_id}}", "remaining"]
+            },
+            "description": "Get remaining funds available for the project"
+          }
+        },
+        {
+          "name": "Get Funding History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/funding/{{project_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "funding", "{{project_id}}", "history"]
+            },
+            "description": "Get complete funding history for a project"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Process Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contributionId\": \"{{contribution_id}}\",\n  \"contributorAddress\": \"0xcontributor_wallet_address\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/process",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "process"]
+            },
+            "description": "Process payment for a completed contribution"
+          }
+        },
+        {
+          "name": "Retry Failed Payment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/{{contribution_id}}/retry",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "{{contribution_id}}", "retry"]
+            },
+            "description": "Retry a failed payment"
+          }
+        },
+        {
+          "name": "Get Contributor Earnings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/contributor/:contributorId/earnings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "contributor", ":contributorId", "earnings"],
+              "variable": [
+                {
+                  "key": "contributorId",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Get total earnings for a contributor"
+          }
+        },
+        {
+          "name": "Get Contributor Payment History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/contributor/:contributorId/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "contributor", ":contributorId", "history"],
+              "variable": [
+                {
+                  "key": "contributorId",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Get payment history for a contributor"
+          }
+        },
+        {
+          "name": "Get Project Payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/project/{{project_id}}/payments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "project", "{{project_id}}", "payments"]
+            },
+            "description": "Get all payments for a project"
+          }
+        },
+        {
+          "name": "Get Project Spending",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/project/{{project_id}}/spending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "project", "{{project_id}}", "spending"]
+            },
+            "description": "Get spending breakdown for a project"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Chat Assistant",
+      "item": [
+        {
+          "name": "Send Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What's the current status of my Web3 dashboard project?\",\n  \"conversationId\": \"{{conversation_id}}\",\n  \"context\": {\n    \"projectId\": \"{{project_id}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Send a message to the AI assistant (non-streaming)"
+          }
+        },
+        {
+          "name": "Stream Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Generate a detailed report on all active milestones\",\n  \"conversationId\": \"{{conversation_id}}\",\n  \"context\": {\n    \"projectId\": \"{{project_id}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/stream",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "stream"]
+            },
+            "description": "Send a message with streaming response"
+          }
+        },
+        {
+          "name": "Get Conversations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.conversations && jsonData.conversations.length > 0) {",
+                  "        pm.collectionVariables.set('conversation_id', jsonData.conversations[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chat/conversations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "conversations"]
+            },
+            "description": "Get all conversations for the authenticated user"
+          }
+        },
+        {
+          "name": "Get Conversation by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chat/conversations/{{conversation_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "conversations", "{{conversation_id}}"]
+            },
+            "description": "Get a specific conversation with message history"
+          }
+        },
+        {
+          "name": "Delete Conversation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chat/conversations/{{conversation_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "conversations", "{{conversation_id}}"]
+            },
+            "description": "Delete a conversation and its messages"
+          }
+        },
+        {
+          "name": "Get Task Suggestions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": \"{{project_id}}\",\n  \"milestoneId\": \"{{milestone_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/suggestions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "suggestions"]
+            },
+            "description": "Get AI-powered task suggestions for a milestone"
+          }
+        },
+        {
+          "name": "Get Rescoping Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": \"{{project_id}}\",\n  \"reason\": \"Project scope has expanded significantly\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/rescoping",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "rescoping"]
+            },
+            "description": "Get AI recommendation for project rescoping"
+          }
+        },
+        {
+          "name": "Get Progress Explanation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/chat/progress/{{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "progress", "{{project_id}}"]
+            },
+            "description": "Get AI-generated explanation of project progress"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "GitHub Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-GitHub-Event",
+                "value": "push"
+              },
+              {
+                "key": "X-Hub-Signature-256",
+                "value": "sha256=signature_here"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ref\": \"refs/heads/main\",\n  \"repository\": {\n    \"id\": 123456,\n    \"full_name\": \"username/repo\"\n  },\n  \"pusher\": {\n    \"name\": \"username\",\n    \"email\": \"user@example.com\"\n  },\n  \"commits\": [\n    {\n      \"id\": \"commit_sha_here\",\n      \"message\": \"Implement feature X\",\n      \"author\": {\n        \"name\": \"Developer Name\",\n        \"email\": \"dev@example.com\"\n      },\n      \"url\": \"https://github.com/username/repo/commit/sha\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/github",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "github"]
+            },
+            "description": "GitHub webhook endpoint for push events, PRs, and check runs"
+          }
+        }
+      ]
+    }
+  ]
+}

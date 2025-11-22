@@ -1,0 +1,806 @@
+generator client {
+  provider   = "prisma-client"
+  output     = "./generated"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                     String               @id @default(uuid())
+  githubId               String               @unique
+  githubUsername         String               @unique
+  walletAddress          String?              @unique
+  email                  String?              @unique
+  role                   UserRole             @default(CONTRIBUTOR)
+  avatarUrl              String?
+  settings               Json?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  bio                    String?
+  name                   String?
+  onboardingCompleted    Boolean              @default(false)
+  organizationName       String?
+  skills                 String[]             @default([])
+  githubAccessToken      String?
+  githubAccessTokenExpiry DateTime?
+  aiUsageLogs            AIUsageLog[]         @relation("UserAIUsage")
+  chatConversations      ChatConversation[]
+  contributions          Contribution[]
+  uploadedDocuments      Document[]
+  githubRepoAccess       GitHubRepoAccess[]
+  reviewedJoinRequests   JoinRequest[]        @relation("ReviewedJoinRequests")
+  joinRequests           JoinRequest[]        @relation("UserJoinRequests")
+  notifications          Notification[]
+  sentOrgInvites         OrganizationInvite[] @relation("InviteSender")
+  organizationMembers    OrganizationMember[]
+  ownedOrganizations     Organization[]
+  prLinks                PrLink[]
+  prSubmissions          PRSubmission[]       @relation("ContributorPRs")
+  sentProjectInvites     ProjectInvite[]      @relation("ProjectInviteSender")
+  receivedProjectInvites ProjectInvite[]      @relation("ProjectInviteReceiver")
+  sponsoredProjects      Project[]            @relation("ProjectSponsor")
+  proofs                 Proof[]              @relation("ProofProver")
+  assignedSubMilestones  SubMilestone[]
+  wallets                Wallet[]             @relation("UserWallets")
+
+  @@index([githubId])
+  @@index([githubUsername])
+  @@index([walletAddress])
+  @@index([email])
+  @@map("users")
+}
+
+model Wallet {
+  id            String   @id @default(uuid())
+  userId        String
+  chain         String   @default("ethereum")
+  isPrimary     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  walletAddress String   @unique
+  user          User     @relation("UserWallets", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([walletAddress])
+  @@map("wallets")
+}
+
+model Organization {
+  id          String               @id @default(uuid())
+  ownerId     String
+  name        String
+  description String?
+  avatarUrl   String?
+  meta        Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  invites     OrganizationInvite[]
+  members     OrganizationMember[]
+  owner       User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  projects    Project[]
+
+  @@index([ownerId])
+  @@map("organizations")
+}
+
+model Project {
+  id                      String             @id @default(uuid())
+  orgId                   String
+  sponsorId               String
+  title                   String
+  description             String?
+  tokenAddress            String?
+  tokenDecimals           Int                @default(18)
+  paymentMode             PaymentMode?
+  status                  ProjectStatus      @default(DRAFT)
+  onchainContractAddress  String?
+  repositoryUrl           String?
+  repositoryId            String?
+  repoType                RepoType           @default(PUBLIC)
+  platformFeePct          Float              @default(2.5)
+  totalPoints             Int                @default(0)
+  totalTokenAmount        Decimal            @default(0) @db.Decimal(20, 8)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  aiModel                 String             @default("gpt-4")
+  billingMode             BillingMode        @default(CREDIT)
+  templateId              String?
+  githubInstallationId    Int?
+  tokenNetwork            String?            @default("arbitrum")
+  repoAnalysisStatus      String?            @default("PENDING")
+  repoAnalysisStartedAt   DateTime?          @db.Timestamp(6)
+  repoAnalysisCompletedAt DateTime?          @db.Timestamp(6)
+  repoFilesIndexed        Int?               @default(0)
+  repoEmbeddingsCount     Int?               @default(0)
+  repoAnalysisError       String?
+  aiGenerationLogs        AIGenerationLog[]
+  aiUsageLogs             AIUsageLog[]       @relation("ProjectAIUsage")
+  chatConversations       ChatConversation[]
+  documents               Document[]
+  escrowPools             EscrowPool[]
+  fundingRecords          FundingRecord[]
+  githubRepoAccess        GitHubRepoAccess[]
+  joinRequests            JoinRequest[]
+  milestones              Milestone[]
+  fundings                ProjectFunding[]
+  projectInvites          ProjectInvite[]
+  organization            Organization       @relation(fields: [orgId], references: [id])
+  sponsor                 User               @relation("ProjectSponsor", fields: [sponsorId], references: [id], onDelete: Cascade)
+  uiTemplates             UITemplate[]       @relation("ProjectTemplates")
+
+  @@index([sponsorId])
+  @@index([orgId])
+  @@index([status])
+  @@index([repoType])
+  @@map("projects")
+}
+
+model Milestone {
+  id            String          @id @default(uuid())
+  projectId     String
+  title         String
+  description   String?
+  points        Int             @default(0)
+  order         Int             @default(0)
+  status        MilestoneStatus @default(OPEN)
+  createdByAI   Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  documents     Document[]
+  escrowPools   EscrowPool[]
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subMilestones SubMilestone[]
+
+  @@index([projectId])
+  @@index([status])
+  @@map("milestones")
+}
+
+model SubMilestone {
+  id                 String             @id @default(uuid())
+  milestoneId        String
+  description        String
+  acceptanceCriteria Json
+  checkpointAmount   Decimal            @db.Decimal(20, 8)
+  checkpointsCount   Int                @default(1)
+  verificationRules  Json?
+  estimateHours      Int?
+  assignedTo         String?
+  status             MilestoneStatus    @default(OPEN)
+  merkleRoot         Bytes?
+  createdByAI        Boolean            @default(false)
+  metadata           Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  points             Int                @default(0)
+  chatConversations  ChatConversation[]
+  contributions      Contribution[]
+  prLink             PrLink?
+  prSubmissions      PRSubmission[]     @relation("PRSubmissions")
+  assignedUser       User?              @relation(fields: [assignedTo], references: [id])
+  milestone          Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@index([milestoneId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("sub_milestones")
+}
+
+model Contribution {
+  id             String             @id @default(uuid())
+  subMilestoneId String
+  contributorId  String
+  commitHash     String
+  prUrl          String?
+  proofId        String?            @unique
+  amountPaid     Decimal            @db.Decimal(20, 8)
+  nullifier      Bytes?
+  status         ContributionStatus @default(PENDING)
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  paidAt         DateTime?
+  paymentTxHash  String?
+  completedAt    DateTime?
+  contributor    User               @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  subMilestone   SubMilestone       @relation(fields: [subMilestoneId], references: [id], onDelete: Cascade)
+  proof          Proof?
+
+  @@index([subMilestoneId])
+  @@index([contributorId])
+  @@index([commitHash])
+  @@index([status])
+  @@index([paymentTxHash])
+  @@map("contributions")
+}
+
+model Proof {
+  id              String       @id @default(uuid())
+  contributionId  String       @unique
+  proverWorkerId  String?
+  proofBytesUrl   String
+  publicSignals   Json
+  verifiedOnChain Boolean      @default(false)
+  txHash          String?
+  circuitVersion  String?
+  provingKeyId    String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  contribution    Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  prover          User?        @relation("ProofProver", fields: [proverWorkerId], references: [id])
+
+  @@index([contributionId])
+  @@index([verifiedOnChain])
+  @@map("proofs")
+}
+
+model ProjectFunding {
+  id              String      @id @default(uuid())
+  projectId       String
+  sponsorId       String
+  token           String
+  amount          Decimal     @db.Decimal(20, 8)
+  mode            PaymentMode
+  onchainTxHash   String
+  remainingAmount Decimal     @db.Decimal(20, 8)
+  depositedAt     DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([sponsorId])
+  @@map("project_fundings")
+}
+
+model EscrowPool {
+  id              String     @id @default(uuid())
+  projectId       String
+  balance         Decimal    @db.Decimal(20, 8)
+  yieldMode       Boolean    @default(false)
+  protocol        String?
+  depositTx       String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  availableAmount Decimal    @default(0) @db.Decimal(20, 8)
+  milestoneId     String?
+  paidAmount      Decimal    @default(0) @db.Decimal(20, 8)
+  milestone       Milestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([milestoneId])
+  @@map("escrow_pools")
+}
+
+model Job {
+  id           String    @id @default(uuid())
+  type         String
+  status       JobStatus @default(QUEUED)
+  payload      Json
+  result       Json?
+  errorMessage String?
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(3)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  @@index([type, status])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("events")
+}
+
+model WebhookLog {
+  id        String   @id @default(uuid())
+  source    String
+  event     String
+  payload   Json
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([source, event])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
+
+model OrganizationMember {
+  id             String           @id @default(uuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole @default(MEMBER)
+  joinedAt       DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrganizationInvite {
+  id             String           @id @default(uuid())
+  organizationId String
+  invitedBy      String
+  email          String?
+  githubUsername String?
+  role           OrganizationRole @default(MEMBER)
+  status         InviteStatus     @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  inviteToken    String?          @unique
+  inviter        User             @relation("InviteSender", fields: [invitedBy], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([githubUsername])
+  @@index([status])
+  @@index([inviteToken])
+  @@map("organization_invites")
+}
+
+model PrLink {
+  id             String       @id @default(uuid())
+  subMilestoneId String       @unique
+  userId         String
+  prUrl          String
+  prNumber       Int
+  repositoryUrl  String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  subMilestone   SubMilestone @relation(fields: [subMilestoneId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([subMilestoneId])
+  @@index([userId])
+  @@index([repositoryUrl])
+  @@map("pr_links")
+}
+
+model AIGenerationLog {
+  id           String   @id @default(uuid())
+  projectId    String
+  prompt       String
+  response     Json?
+  status       String   @default("PENDING")
+  errorMessage String?
+  modelName    String?
+  temperature  Float?
+  checksum     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+  @@map("ai_generation_logs")
+}
+
+model ProjectInvite {
+  id                   String           @id @default(uuid())
+  projectId            String
+  fromUserId           String
+  toUserId             String?
+  email                String?
+  githubUsername       String?
+  role                 OrganizationRole @default(CONTRIBUTOR)
+  platformInviteStatus InviteStatus     @default(PENDING)
+  githubInviteStatus   InviteStatus     @default(PENDING)
+  message              String?
+  expiresAt            DateTime
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  fromUser             User             @relation("ProjectInviteSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  project              Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  toUser               User?            @relation("ProjectInviteReceiver", fields: [toUserId], references: [id])
+
+  @@index([projectId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([email])
+  @@index([githubUsername])
+  @@index([platformInviteStatus])
+  @@map("project_invites")
+}
+
+model GitHubRepoAccess {
+  id                 String            @id @default(uuid())
+  userId             String
+  projectId          String
+  accessState        GitHubAccessState @default(NONE)
+  githubInvitationId String?
+  lastSyncedAt       DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  project            Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([accessState])
+  @@map("github_repo_access")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  metadata  Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model Document {
+  id            String     @id @default(uuid())
+  projectId     String
+  fileName      String
+  fileUrl       String
+  fileType      String
+  fileSizeBytes Int
+  vectorRefIds  String[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  milestoneId   String?
+  uploadedBy    String?
+  milestone     Milestone? @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader      User?      @relation(fields: [uploadedBy], references: [id])
+
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([fileType])
+  @@map("documents")
+}
+
+model FundingRecord {
+  id            String      @id @default(uuid())
+  projectId     String
+  amount        Decimal     @db.Decimal(20, 8)
+  token         String
+  mode          PaymentMode
+  depositTxHash String
+  oracleRate    Decimal?    @db.Decimal(20, 8)
+  createdAt     DateTime    @default(now())
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([depositTxHash])
+  @@map("funding_records")
+}
+
+model ChatConversation {
+  id             String        @id @default(uuid())
+  userId         String
+  projectId      String?
+  subMilestoneId String?
+  title          String?
+  contextType    String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subMilestone   SubMilestone? @relation(fields: [subMilestoneId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       ChatMessage[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([subMilestoneId])
+  @@index([contextType])
+  @@index([createdAt])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id               String           @id @default(uuid())
+  conversationId   String
+  role             String
+  content          String
+  tokens           Int?
+  model            String?
+  contextRetrieved Json?
+  toolCalls        Json?
+  createdAt        DateTime         @default(now())
+  conversation     ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([role])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+model JoinRequest {
+  id         String       @id @default(uuid())
+  projectId  String
+  userId     String
+  message    String?
+  status     InviteStatus @default(PENDING)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reviewer   User?        @relation("ReviewedJoinRequests", fields: [reviewedBy], references: [id])
+  user       User         @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@map("join_requests")
+}
+
+model PRSubmission {
+  id                       String         @id @default(uuid())
+  subMilestoneId           String
+  contributorId            String
+  prUrl                    String
+  prNumber                 Int?
+  notes                    String?
+  status                   String         @default("PENDING")
+  aiReviewScore            Float?
+  aiReviewFeedback         Json?
+  sponsorFeedback          String?
+  mergedAt                 DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  coderabbitScore          Float?
+  combinedScore            Float?
+  contributorScreenshotUrl String?
+  mergeStatus              MergeStatus    @default(PENDING)
+  requiresSponsorApproval  Boolean        @default(false)
+  sponsorScreenshotUrl     String?
+  contributor              User           @relation("ContributorPRs", fields: [contributorId], references: [id], onDelete: Cascade)
+  subMilestone             SubMilestone   @relation("PRSubmissions", fields: [subMilestoneId], references: [id], onDelete: Cascade)
+  screenshots              UIScreenshot[]
+
+  @@index([subMilestoneId])
+  @@index([contributorId])
+  @@index([status])
+  @@index([prUrl])
+  @@map("pr_submissions")
+}
+
+model UIScreenshot {
+  id             String       @id @default(uuid())
+  prSubmissionId String
+  s3Key          String
+  s3Url          String
+  filename       String
+  mimeType       String
+  size           Int
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  prSubmission   PRSubmission @relation(fields: [prSubmissionId], references: [id], onDelete: Cascade)
+
+  @@index([prSubmissionId])
+  @@map("ui_screenshots")
+}
+
+model UITemplate {
+  id            String   @id @default(uuid())
+  projectId     String
+  name          String
+  description   String?
+  colors        Json
+  fonts         Json
+  components    Json
+  layout        Json
+  styleTokens   Json?
+  generatedByAI Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation("ProjectTemplates", fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("ui_templates")
+}
+
+model AIUsageLog {
+  id           String         @id @default(uuid())
+  userId       String
+  projectId    String?
+  workflow     AIWorkflowType
+  model        String         @default("gpt-4")
+  inputTokens  Int            @default(0)
+  outputTokens Int            @default(0)
+  totalTokens  Int            @default(0)
+  cost         Decimal        @default(0) @db.Decimal(10, 6)
+  billedVia    BillingMethod  @default(CREDIT)
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+  project      Project?       @relation("ProjectAIUsage", fields: [projectId], references: [id], onDelete: Cascade)
+  user         User           @relation("UserAIUsage", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([workflow])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
+}
+
+model GitHubInstallation {
+  id                  String    @id @default(uuid())
+  installationId      String    @unique
+  accountId           String
+  accountLogin        String
+  accountType         String
+  targetType          String
+  permissions         String?
+  events              String?
+  accessToken         String?
+  accessTokenExpiry   DateTime?
+  userId              String
+  organizationId      String?
+  repositorySelection String    @default("all")
+  selectedRepoIds     String?
+  isActive            Boolean   @default(true)
+  suspendedAt         DateTime?
+  suspendedBy         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([installationId])
+  @@index([accountLogin])
+  @@index([isActive])
+  @@map("github_installations")
+}
+
+enum UserRole {
+  SPONSOR
+  CONTRIBUTOR
+  ADMIN
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum PaymentMode {
+  ESCROW
+  YIELD
+  GASLESS
+}
+
+enum MilestoneStatus {
+  OPEN
+  CLAIMED
+  IN_PROGRESS
+  COMPLETED
+  RESCOPED
+}
+
+enum ContributionStatus {
+  PENDING
+  VERIFIED
+  PAID
+  DISPUTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  FAILED
+  RETRYING
+  SUCCEEDED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum OrganizationRole {
+  OWNER
+  MAINTAINER
+  SPONSOR
+  CONTRIBUTOR
+  ADMIN
+  MEMBER
+}
+
+enum GitHubAccessState {
+  NONE
+  INVITE_SENT
+  ACCESS_GRANTED
+}
+
+enum RepoType {
+  PUBLIC
+  PRIVATE
+  PRIVATE_INVITE
+  PRIVATE_REQUEST
+  OPEN_EVENT
+}
+
+enum NotificationType {
+  INVITE
+  PR_LINKED
+  VERIFICATION_PENDING
+  VERIFICATION_SUCCESS
+  PAYMENT_SENT
+  AI_MILESTONE_READY
+  REPO_ACCESS_GRANTED
+  TASK_CLAIMED
+  TASK_APPROVED
+  YIELD_HARVESTED
+  PROJECT_FUNDED
+}
+
+enum BillingMode {
+  CREDIT
+  MICROPAYMENT
+  HYBRID
+}
+
+enum MergeStatus {
+  PENDING
+  AI_APPROVED
+  AI_REJECTED
+  SPONSOR_REVIEW
+  SPONSOR_APPROVED
+  SPONSOR_REJECTED
+  MERGED
+  FAILED
+}
+
+enum AIWorkflowType {
+  MILESTONE_GENERATION
+  PR_REVIEW
+  UI_ANALYSIS
+  CHAT
+  CODE_ANALYSIS
+}
+
+enum BillingMethod {
+  CREDIT
+  MICROPAYMENT
+  FREE
+}
+
+enum RepoAnalysisStatus {
+  PENDING
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
