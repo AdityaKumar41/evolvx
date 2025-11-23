@@ -385,13 +385,13 @@ export const aiMilestoneGenerationWorkflow = inngest.createFunction(
               createdByAI: true,
               subMilestones: {
                 create: (m.subMilestones as unknown as SubMilestoneType[]).map((sm) => ({
-                  description: `${sm.title}\n\n${sm.description}`,
-                  acceptanceCriteria: JSON.stringify({
-                    criteria: sm.acceptanceCriteria,
-                    technicalRequirements: sm.technicalRequirements,
-                    suggestedFiles: sm.suggestedFiles || [],
-                    taskType: sm.taskType, // Store in metadata instead
-                  }),
+                  title: sm.title,
+                  description: sm.description,
+                  detailedDescription: sm.detailedDescription,
+                  acceptanceCriteria: sm.acceptanceCriteria || [],
+                  technicalRequirements: sm.technicalRequirements || [],
+                  suggestedFiles: sm.suggestedFiles || [],
+                  taskType: sm.taskType,
                   checkpointAmount: String(sm.points),
                   checkpointsCount: 1,
                   estimateHours: sm.estimatedHours,

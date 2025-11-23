@@ -41,16 +41,28 @@ export interface MilestoneGenerationContext {
 // Schemas for structured output
 export const SubMilestoneSchema = z.object({
   title: z.string().describe('Clear, actionable sub-milestone title (max 80 chars)'),
-  description: z.string().describe('Detailed description of the task with technical context'),
+  description: z.string().describe('Brief task summary (1-2 sentences)'),
+  detailedDescription: z
+    .string()
+    .describe(
+      'Comprehensive task description with implementation approach, technical details, and expected outcome (3-5 paragraphs)'
+    ),
   points: z.number().min(1).max(100).describe('Point value representing complexity (1-100)'),
   estimatedHours: z.number().min(1).describe('Estimated hours to complete this task'),
-  taskType: z.enum(['ui', 'code', 'feature', 'bug', 'docs']).describe('Type of task'),
-  technicalRequirements: z.array(z.string()).describe('Technical requirements and dependencies'),
+  taskType: z
+    .enum(['UI', 'CODE', 'FEATURE', 'BUG', 'DOCS', 'TEST', 'REFACTOR', 'INFRASTRUCTURE'])
+    .describe('Type of task'),
+  technicalRequirements: z
+    .array(z.string())
+    .describe('Technical requirements, libraries, APIs, tools, or patterns needed'),
   acceptanceCriteria: z
     .array(z.string())
     .min(1)
     .describe('Specific, testable criteria for completion'),
-  suggestedFiles: z.array(z.string()).optional().describe('Files that may need modification'),
+  suggestedFiles: z
+    .array(z.string())
+    .optional()
+    .describe('Files that may need to be created or modified'),
   dependencies: z.array(z.string()).optional().describe('IDs of sub-milestones this depends on'),
 });
 
@@ -331,20 +343,116 @@ Your expertise includes: Full-stack development, Cloud architecture, DevOps, Agi
 - Create 5-12 milestones depending on project complexity
 - Each milestone = 1-2 weeks of work with clear deliverables
 
-## 3. DETAILED SUB-MILESTONES (Tasks)
-Each milestone should have 5-12 specific, actionable sub-milestones:
-- **Title**: Crystal clear, actionable (e.g., "Implement JWT Authentication with Refresh Tokens")
-- **Description**: 2-4 sentences with technical details, approach, and expected outcome
-- **Technical Requirements**: Specific libraries, APIs, tools, or patterns needed
-- **Acceptance Criteria**: 3-5 testable, specific criteria (e.g., "User can login with email/password", "Access token expires after 15 minutes")
-- **Suggested Files**: Actual file paths that will be created/modified
-- **Task Type**: Categorize as 'feature', 'ui', 'code', 'bug', 'docs'
-- **Points**: Reflect TRUE complexity
-  * 1-15 points: Quick tasks (1-4 hours)
-  * 16-35 points: Standard features (4-12 hours)
-  * 36-60 points: Complex features (1-3 days)
-  * 61-100 points: Major architectural work (3-5 days)
-- **Estimated Hours**: Realistic time including design, coding, testing, review
+## 3. IN-DEPTH SUB-MILESTONES (Build Tasks that Make Sense)
+Each milestone should have 8-15 PRACTICAL, BUILD-READY sub-milestones that follow a logical implementation order:
+
+### 🏗️ **SUB-MILESTONE STRUCTURE** (Follow this flow for each milestone):
+
+1. **Foundation First** (Setup/Configuration):
+   - Example: "Set up database schema for user authentication"
+   - Example: "Create API route structure for auth endpoints"
+   - Example: "Configure environment variables for OAuth providers"
+
+2. **Core Implementation** (Main functionality):
+   - Example: "Implement user registration with email validation"
+   - Example: "Build JWT token generation and refresh logic"
+   - Example: "Create protected route middleware"
+
+3. **Integration Points** (Connect components):
+   - Example: "Integrate auth service with user profile API"
+   - Example: "Connect frontend login form to backend API"
+   - Example: "Link authentication state to Redux store"
+
+4. **UI/UX Components** (If applicable):
+   - Example: "Design and implement login form component"
+   - Example: "Create password reset flow UI"
+   - Example: "Add loading states and error handling to auth forms"
+
+5. **Testing & Validation**:
+   - Example: "Write unit tests for authentication service"
+   - Example: "Add integration tests for login/logout flow"
+   - Example: "Test token refresh mechanism"
+
+6. **Polish & Edge Cases**:
+   - Example: "Add rate limiting to login endpoint"
+   - Example: "Implement account lockout after failed attempts"
+   - Example: "Add logging and monitoring for auth events"
+
+### 📝 **REQUIRED FIELDS FOR EACH SUB-MILESTONE**:
+
+- **Title**: Actionable task starting with a verb (max 80 chars)
+  ✅ Good: "Implement JWT token refresh mechanism with Redis cache"
+  ❌ Bad: "Authentication" or "Tokens"
+
+- **Description**: 1-2 sentences summarizing the task
+  Example: "Build the token refresh endpoint that validates refresh tokens and issues new access tokens."
+
+- **Detailed Description**: 3-5 paragraphs covering:
+  * What needs to be built and why
+  * Step-by-step implementation approach
+  * Technical considerations and edge cases
+  * Expected behavior and user experience
+  * Integration points with other components
+
+- **Task Type**: Choose the PRIMARY type
+  * UI - User interface components and styling
+  * CODE - Backend logic, services, utilities
+  * FEATURE - End-to-end feature spanning multiple layers
+  * BUG - Fixing issues or bugs
+  * DOCS - Documentation, README, API docs
+  * TEST - Writing tests (unit, integration, e2e)
+  * REFACTOR - Code improvement without new features
+  * INFRASTRUCTURE - DevOps, deployment, configs
+
+- **Points** (Complexity scoring):
+  * 5-10 points: Simple tasks (2-4 hours) - Basic CRUD, simple components, config files
+  * 15-25 points: Standard tasks (4-8 hours) - API endpoints, form components, service integration
+  * 30-45 points: Complex tasks (1-2 days) - Auth systems, payment integration, real-time features
+  * 50-70 points: Major features (2-4 days) - Complete modules, complex workflows, multi-step processes
+  * 75-100 points: Architectural work (4-7 days) - Core infrastructure, major refactors, system design
+
+- **Estimated Hours**: Realistic time including research, coding, testing, code review
+
+- **Technical Requirements**: Be SPECIFIC
+  ✅ Good: ["jsonwebtoken ^9.0.0", "bcrypt for password hashing", "express-rate-limit middleware", "Redis for token blacklist"]
+  ❌ Bad: ["JWT", "security", "database"]
+
+- **Acceptance Criteria**: 4-7 TESTABLE conditions
+  ✅ Good: 
+    * "User can login with valid email/password and receive access + refresh tokens"
+    * "Access token expires after 15 minutes"
+    * "Refresh token can be used to get new access token"
+    * "Invalid credentials return 401 with error message"
+    * "Rate limit of 5 attempts per minute per IP address"
+  ❌ Bad: ["Login works", "Tokens are secure", "User can authenticate"]
+
+- **Suggested Files**: Actual file paths in the project
+  Example: [
+    "src/services/auth/token.service.ts",
+    "src/routes/auth/refresh.route.ts",
+    "src/middleware/auth.middleware.ts",
+    "tests/auth/token.test.ts"
+  ]
+
+### 🎯 **LOGICAL TASK ORDERING RULES**:
+
+1. **Dependencies First**: Database schema before API routes, services before controllers
+2. **Bottom-Up**: Build foundational pieces before combining them
+3. **Test After Build**: Unit tests after service implementation, integration tests after API routes
+4. **Progressive Enhancement**: Core functionality first, then optimizations and edge cases
+5. **Parallel-Ready**: Group independent tasks that can be worked on simultaneously
+
+### 💡 **PRACTICAL EXAMPLES OF GOOD SUB-MILESTONES**:
+
+**Bad** (too vague):
+- "Build user authentication" (what exactly? too broad)
+- "Add database" (no context, no details)
+
+**Good** (specific, actionable):
+- "Create Prisma schema for User and Session tables with proper indexes"
+- "Implement POST /auth/register endpoint with email validation and password hashing"
+- "Build React login form component with form validation using react-hook-form"
+- "Write integration tests for complete registration flow including email verification"
 
 ## 4. MODERN BEST PRACTICES
 ✅ Include these critical elements:
@@ -454,15 +562,59 @@ Be SPECIFIC, DETAILED, and ACTIONABLE. Think like you're building for a major pr
       prompt += `## Existing Codebase\n\`\`\`\n${context.existingCode}\n\`\`\`\n\n`;
     }
 
-    prompt += `\n---\n\n🎯 **CRITICAL INSTRUCTIONS**:
+    prompt += `\n---\n\n🎯 **CRITICAL INSTRUCTIONS FOR MILESTONE GENERATION**:
 
-1. **STRICT CONTEXT USAGE**: Only generate milestones based on the PRD, requirements, and context above. Do NOT add generic setup, repo, or CI/CD milestones unless explicitly requested.
-2. **ALIGN WITH USER PROMPT**: If the user asks for specific features, only those should appear as milestones.
-3. **NO TEMPLATES**: Do NOT use templates or boilerplate unless the PRD or requirements demand it.
-4. **REFERENCE USER DETAILS**: Reference the user's requirements and context in every milestone and sub-milestone.
-5. **MATCH SCOPE**: The number and type of milestones should match the user's PRD and context, not a default structure.
+1. **CREATE PRACTICAL, BUILD-READY SUB-MILESTONES**:
+   - Each sub-milestone must be a CONCRETE task that a developer can pick up and complete
+   - Follow logical build order: schema → services → API → UI → tests
+   - Break down complex features into 8-15 granular, actionable tasks
+   - Each task should take 2-8 hours maximum (if longer, break it down further)
 
-Based on this comprehensive context, create a complete project roadmap with milestones and sub-milestones that PRECISELY matches what the user requested.`;
+2. **AVOID VAGUE OR GENERIC TASKS**:
+   ❌ DON'T: "Build user system", "Add database", "Create frontend"
+   ✅ DO: "Create Prisma User schema with email, password, and profile fields"
+   ✅ DO: "Implement POST /api/users endpoint with validation and error handling"
+   ✅ DO: "Build UserProfileForm component with real-time validation"
+
+3. **FOLLOW DEPENDENCY ORDER**:
+   - Database schemas before services
+   - Services before API routes
+   - API routes before frontend integration
+   - Core functionality before optimizations
+   - Features before tests
+
+4. **INCLUDE ALL LAYERS** (when applicable):
+   - Database: Schema, migrations, indexes
+   - Backend: Services, controllers, routes, middleware
+   - Frontend: Components, hooks, state management, forms
+   - Testing: Unit tests, integration tests, E2E tests
+   - DevOps: Environment configs, deployment scripts (only if mentioned)
+
+5. **BE SPECIFIC WITH TECHNICAL REQUIREMENTS**:
+   - Mention exact library names with versions when possible
+   - Specify API endpoints being created/used
+   - List actual file paths that will be modified
+   - Include configuration details (e.g., "JWT expires in 15min")
+
+6. **WRITE DETAILED DESCRIPTIONS**:
+   - Explain WHAT needs to be built
+   - Explain HOW it should be implemented
+   - Mention WHY it's important
+   - Note integration points with other components
+   - Include expected behavior and edge cases
+
+7. **STRICT CONTEXT USAGE**: 
+   - Only generate milestones based on the PRD and requirements provided above
+   - Do NOT add generic setup tasks unless explicitly mentioned
+   - Reference specific technologies and patterns from the context
+   - Match the exact scope described by the user
+
+8. **QUALITY OVER QUANTITY**:
+   - It's better to have 10 highly detailed, actionable sub-milestones than 20 vague ones
+   - Each sub-milestone should have clear acceptance criteria that can be tested
+   - Points should accurately reflect complexity (simple config = 5-10, complex feature = 40-60)
+
+Based on this comprehensive context, create a complete project roadmap with milestones and sub-milestones that PRECISELY matches what the user requested. Make each sub-milestone so detailed that a developer can start coding immediately without asking questions.`;
     return prompt;
   }
 }

@@ -103,14 +103,31 @@ router.post(
 // Get all projects (with optional filters)
 router.get(
   '/',
+  authenticate as any, // Add authentication to filter based on user role
   asyncHandler(async (req, res) => {
     const { status, sponsorId } = req.query;
+    const currentUser = req.user;
+
+    // Build where clause based on user role
+    const where: any = {
+      ...(status && { status: status as any }), // eslint-disable-line @typescript-eslint/no-explicit-any
+      ...(sponsorId && { sponsorId: sponsorId as string }),
+    };
+
+    // Contributors should only see ACTIVE projects (not DRAFT)
+    // unless they are viewing their own sponsored projects
+    if (currentUser?.role === 'CONTRIBUTOR') {
+      // If viewing own sponsored projects, show all
+      if (sponsorId && sponsorId === currentUser.id) {
+        // Allow viewing own projects regardless of status
+      } else {
+        // Only show ACTIVE projects for browsing
+        where.status = 'ACTIVE';
+      }
+    }
 
     const projects = await prisma.project.findMany({
-      where: {
-        ...(status && { status: status as any }), // eslint-disable-line @typescript-eslint/no-explicit-any
-        ...(sponsorId && { sponsorId: sponsorId as string }),
-      },
+      where,
       include: {
         sponsor: {
           select: {

@@ -53,20 +53,36 @@ export class ProjectController {
    */
   static async getProjects(req: AuthRequest, res: Response) {
     const { status, sponsorId, search } = req.query;
+    const currentUser = req.user;
+
+    // Build where clause based on user role
+    const where: any = {
+      ...(status && { status: status as 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED' }),
+      ...(sponsorId && { sponsorId: sponsorId as string }),
+      ...(search && {
+        OR: [
+          { title: { contains: search as string, mode: 'insensitive' } },
+          {
+            description: { contains: search as string, mode: 'insensitive' },
+          },
+        ],
+      }),
+    };
+
+    // Contributors should only see ACTIVE projects (not DRAFT)
+    // unless they are viewing their own sponsored projects
+    if (currentUser?.role === 'CONTRIBUTOR') {
+      // If viewing own sponsored projects, show all
+      if (sponsorId && sponsorId === currentUser.id) {
+        // Allow viewing own projects regardless of status
+      } else {
+        // Only show ACTIVE projects for browsing
+        where.status = 'ACTIVE';
+      }
+    }
 
     const projects = await prisma.project.findMany({
-      where: {
-        ...(status && { status: status as 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED' }),
-        ...(sponsorId && { sponsorId: sponsorId as string }),
-        ...(search && {
-          OR: [
-            { title: { contains: search as string, mode: 'insensitive' } },
-            {
-              description: { contains: search as string, mode: 'insensitive' },
-            },
-          ],
-        }),
-      },
+      where,
       include: {
         sponsor: {
           select: {

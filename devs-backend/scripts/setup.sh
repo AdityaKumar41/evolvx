@@ -69,12 +69,11 @@ npm run db:push
 
 # Create S3 bucket in MinIO
 echo "🪣 Setting up S3 bucket..."
-docker run --rm --network devs-hack_devsponsor-network \
-    --entrypoint sh minio/mc -c "
-    mc alias set minio http://minio:9000 minioadmin minioadmin;
-    mc mb minio/devsponsor-artifacts --ignore-existing;
-    mc anonymous set download minio/devsponsor-artifacts;
-    echo '✅ S3 bucket created'
+docker exec devsponsor-minio sh -c "
+    mc alias set local http://localhost:9000 minioadmin minioadmin;
+    mc mb local/devsponsor-artifacts --ignore-existing;
+    mc anonymous set download local/devsponsor-artifacts;
+    echo '✅ S3 bucket created and configured'
     " || echo "⚠️  S3 bucket setup skipped (may already exist)"
 
 echo ""

@@ -29,6 +29,7 @@ import billingRoutes from './routes/billing.routes';
 import aiRoutes from './routes/ai.routes';
 import githubRoutes from './routes/github.routes';
 import testRoutes from './routes/test.routes';
+import commentRoutes from './routes/comment.routes';
 
 // Inngest
 import { serve } from 'inngest/express';
@@ -92,6 +93,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/github', githubRoutes);
+app.use('/api/comments', commentRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/test', testRoutes);
 

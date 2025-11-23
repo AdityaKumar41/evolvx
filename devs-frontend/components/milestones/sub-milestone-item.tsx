@@ -86,6 +86,7 @@ export function SubMilestoneItem({
 
   return (
     <div
+      onClick={onClick}
       className={cn(
         "group flex items-center gap-3 p-3 pl-4 rounded-lg border-l-2 border-transparent hover:border-primary/50 hover:bg-white/5 transition-all cursor-pointer",
         subMilestone.status === "COMPLETED" && "opacity-60"
@@ -113,7 +114,6 @@ export function SubMilestoneItem({
           />
         ) : (
           <div
-            onClick={onClick}
             onDoubleClick={(e) => {
               e.stopPropagation();
               setIsEditing(true);

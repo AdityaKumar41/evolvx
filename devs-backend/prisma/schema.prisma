@@ -28,6 +28,7 @@ model User {
   githubAccessTokenExpiry DateTime?
   aiUsageLogs            AIUsageLog[]         @relation("UserAIUsage")
   chatConversations      ChatConversation[]
+  comments               Comment[]            @relation("UserComments")
   contributions          Contribution[]
   uploadedDocuments      Document[]
   githubRepoAccess       GitHubRepoAccess[]
@@ -160,33 +161,56 @@ model Milestone {
 }
 
 model SubMilestone {
-  id                 String             @id @default(uuid())
-  milestoneId        String
-  description        String
-  acceptanceCriteria Json
-  checkpointAmount   Decimal            @db.Decimal(20, 8)
-  checkpointsCount   Int                @default(1)
-  verificationRules  Json?
-  estimateHours      Int?
-  assignedTo         String?
-  status             MilestoneStatus    @default(OPEN)
-  merkleRoot         Bytes?
-  createdByAI        Boolean            @default(false)
-  metadata           Json?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  points             Int                @default(0)
-  chatConversations  ChatConversation[]
-  contributions      Contribution[]
-  prLink             PrLink?
-  prSubmissions      PRSubmission[]     @relation("PRSubmissions")
-  assignedUser       User?              @relation(fields: [assignedTo], references: [id])
-  milestone          Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  id                    String             @id @default(uuid())
+  milestoneId           String
+  title                 String?
+  description           String
+  detailedDescription   String?            @db.Text
+  acceptanceCriteria    Json
+  technicalRequirements Json?
+  suggestedFiles        Json?
+  referenceLinks        Json?
+  referenceImages       Json?
+  taskType              TaskType?          @default(FEATURE)
+  checkpointAmount      Decimal            @db.Decimal(20, 8)
+  checkpointsCount      Int                @default(1)
+  verificationRules     Json?
+  estimateHours         Int?
+  assignedTo            String?
+  status                MilestoneStatus    @default(OPEN)
+  merkleRoot            Bytes?
+  createdByAI           Boolean            @default(false)
+  metadata              Json?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  points                Int                @default(0)
+  chatConversations     ChatConversation[]
+  comments              Comment[]
+  contributions         Contribution[]
+  prLink                PrLink?
+  prSubmissions         PRSubmission[]     @relation("PRSubmissions")
+  assignedUser          User?              @relation(fields: [assignedTo], references: [id])
+  milestone             Milestone          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
 
   @@index([milestoneId])
   @@index([assignedTo])
   @@index([status])
   @@map("sub_milestones")
+}
+
+model Comment {
+  id             String       @id @default(uuid())
+  subMilestoneId String
+  userId         String
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
+  subMilestone   SubMilestone @relation(fields: [subMilestoneId], references: [id], onDelete: Cascade)
+
+  @@index([subMilestoneId])
+  @@index([userId])
+  @@map("comments")
 }
 
 model Contribution {
@@ -781,6 +805,17 @@ enum MergeStatus {
   SPONSOR_REJECTED
   MERGED
   FAILED
+}
+
+enum TaskType {
+  UI
+  CODE
+  FEATURE
+  BUG
+  DOCS
+  TEST
+  REFACTOR
+  INFRASTRUCTURE
 }
 
 enum AIWorkflowType {

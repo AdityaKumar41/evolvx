@@ -21,6 +21,8 @@ interface MilestoneTabProps {
   progress?: MilestoneGenerationProgress | null;
   streamedMilestones?: StreamedMilestone[];
   isGenerating?: boolean;
+  isContributor?: boolean;
+  isSponsor?: boolean;
   onMilestoneUpdate?: (milestoneId: string, data: Partial<Milestone>) => void;
   onSubMilestoneUpdate?: (
     subMilestoneId: string,
@@ -38,6 +40,9 @@ export function MilestoneTab({
   progress,
   streamedMilestones = [],
   isGenerating,
+  isContributor = false,
+  isSponsor = false,
+  onSubMilestoneClick,
 }: MilestoneTabProps) {
   const hasMilestones = milestones && milestones.length > 0;
   const hasStreamedMilestones = streamedMilestones.length > 0;
@@ -82,26 +87,30 @@ export function MilestoneTab({
     }));
   }, [milestones]);
 
-  // Split Layout - AI Assistant on left, content on right
+  // Split Layout - AI Assistant on left (sponsors only), content on right
   return (
     <div className="flex h-full gap-6 relative">
-      {/* Left Sidebar - AI Assistant */}
-      <div className="hidden md:block w-[400px] shrink-0">
-        <ProjectAIAssistant
-          projectId={projectId}
-          projectName={projectName}
-          className="h-[calc(100vh-12rem)] sticky top-4"
-        />
-      </div>
+      {/* Left Sidebar - AI Assistant (Sponsors Only) */}
+      {isSponsor && (
+        <div className="hidden md:block w-[400px] shrink-0">
+          <ProjectAIAssistant
+            projectId={projectId}
+            projectName={projectName}
+            className="h-[calc(100vh-12rem)] sticky top-4"
+          />
+        </div>
+      )}
 
-      {/* Mobile AI Assistant - Bottom Sheet */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg">
-        <ProjectAIAssistant
-          projectId={projectId}
-          projectName={projectName}
-          className="h-[50vh]"
-        />
-      </div>
+      {/* Mobile AI Assistant - Bottom Sheet (Sponsors Only) */}
+      {isSponsor && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg">
+          <ProjectAIAssistant
+            projectId={projectId}
+            projectName={projectName}
+            className="h-[50vh]"
+          />
+        </div>
+      )}
 
       {/* Right Side - Content */}
       <div className="flex-1 overflow-y-auto pb-[50vh] md:pb-0">
@@ -253,7 +262,7 @@ export function MilestoneTab({
                 </p>
               </div>
 
-              <Plan initialTasks={tasks} />
+              <Plan initialTasks={tasks} onSubtaskClick={onSubMilestoneClick} />
             </motion.div>
           ) : (
             <motion.div

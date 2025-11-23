@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { prisma } from '../lib/prisma';
+import { MilestoneController } from '../controllers/milestone.controller';
+import multer from 'multer';
 
 const router: Router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Create milestone for a project
 router.post(
@@ -143,6 +146,37 @@ router.get(
 
     res.json({ milestones });
   })
+);
+
+// Get detailed submilestone information
+router.get(
+  '/submilestone/:subMilestoneId',
+  asyncHandler(MilestoneController.getSubMilestoneDetails)
+);
+
+// Update submilestone (sponsor only)
+router.patch(
+  '/submilestone/:subMilestoneId',
+  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  authorize('SPONSOR', 'ADMIN') as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  asyncHandler(MilestoneController.updateSubMilestone)
+);
+
+// Upload reference images for submilestone
+router.post(
+  '/submilestone/:subMilestoneId/reference-images',
+  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  authorize('SPONSOR', 'ADMIN') as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  upload.array('images', 10), // Max 10 images
+  asyncHandler(MilestoneController.uploadReferenceImages)
+);
+
+// Delete reference image
+router.delete(
+  '/submilestone/:subMilestoneId/reference-images',
+  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  authorize('SPONSOR', 'ADMIN') as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  asyncHandler(MilestoneController.deleteReferenceImage)
 );
 
 export default router;

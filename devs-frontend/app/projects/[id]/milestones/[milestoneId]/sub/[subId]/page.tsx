@@ -238,7 +238,7 @@ export default function SubMilestonePage() {
                     <Textarea
                       value={subMilestone.acceptanceCriteria}
                       readOnly
-                      className="min-h-[80px]"
+                      className="min-h-20"
                     />
                   </div>
                 )}

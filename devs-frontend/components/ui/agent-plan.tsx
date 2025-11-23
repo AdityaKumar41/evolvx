@@ -220,8 +220,10 @@ const initialTasks: Task[] = [
 
 export default function Plan({
   initialTasks: propTasks,
+  onSubtaskClick,
 }: {
   initialTasks?: Task[];
+  onSubtaskClick?: (taskId: string, subtaskId: string) => void;
 }) {
   const [tasks, setTasks] = useState<Task[]>(propTasks || initialTasks);
 
@@ -586,10 +588,12 @@ export default function Plan({
                               return (
                                 <motion.li
                                   key={subtask.id}
-                                  className="group flex flex-col py-0.5 pl-6"
-                                  onClick={() =>
-                                    toggleSubtaskExpansion(task.id, subtask.id)
-                                  }
+                                  className="group flex flex-col py-0.5 pl-6 cursor-pointer"
+                                  onClick={() => {
+                                    if (onSubtaskClick) {
+                                      onSubtaskClick(task.id, subtask.id);
+                                    }
+                                  }}
                                   variants={subtaskVariants}
                                   initial="hidden"
                                   animate="visible"

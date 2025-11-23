@@ -1,18 +1,15 @@
 "use client";
 
 import { useRouter, useParams } from "next/navigation";
-import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import { useProject } from "@/hooks/use-projects";
-import { api } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import {
   useProjectMilestones,
-  useClaimSubMilestone,
   useUpdateMilestone,
   useUpdateSubMilestone,
 } from "@/hooks/use-milestones";
 import { useAIMilestoneGeneration } from "@/hooks/use-ai-milestone-generation";
-import { MilestoneTree } from "@/components/milestones/milestone-tree";
 import { useAuth } from "@/components/auth-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
@@ -29,38 +26,19 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
-import { VercelV0Chat } from "@/components/ui/v0-ai-chat";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { MilestoneStatus } from "@/lib/types";
-import {
-  CheckCircle2,
-  Circle,
-  Clock,
-  ExternalLink,
-  FolderKanban,
-  GitBranch,
-  Wallet,
-} from "lucide-react";
+import { FolderKanban } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 
 import { OverviewTab } from "@/components/project/overview-tab";
 import { MilestoneTab } from "@/components/project/milestone-tab";
 
-export default function ProjectDetailPage() {
+export default function SponsorProjectDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
@@ -75,7 +53,6 @@ export default function ProjectDetailPage() {
     isLoading: milestonesLoading,
     refetch: refetchMilestones,
   } = useProjectMilestones(id);
-  const claimSubMilestone = useClaimSubMilestone();
   const updateMilestone = useUpdateMilestone();
   const updateSubMilestone = useUpdateSubMilestone();
 
@@ -83,11 +60,10 @@ export default function ProjectDetailPage() {
   const {
     progress: generationProgress,
     streamedMilestones,
-    isConnected,
     isGenerating,
   } = useAIMilestoneGeneration(id);
 
-  // Show progress toasts as milestones are generated (only show on start and completion)
+  // Show progress toasts as milestones are generated
   useEffect(() => {
     if (!generationProgress) return;
 
@@ -98,11 +74,10 @@ export default function ProjectDetailPage() {
         id: "milestone-gen",
         duration: 3000,
       });
-      refetchMilestones(); // Refresh to show saved milestones
+      refetchMilestones();
     } else if (generationProgress.stage === "error") {
       toast.error("Failed to generate milestones", { id: "milestone-gen" });
     }
-    // Don't show toast for intermediate progress (analyzing, generating, etc.)
   }, [generationProgress, refetchMilestones]);
 
   // Monitor repository analysis status
@@ -111,11 +86,10 @@ export default function ProjectDetailPage() {
 
     const checkRepoAnalysis = async () => {
       try {
-        const response = await api.projects.get(id);
+        const response = await apiClient.get(`/api/projects/${id}`);
         const status = response.data.project.repoAnalysisStatus;
         setRepoAnalysisStatus(status);
 
-        // Show toast when analysis completes
         if (status === "COMPLETED" && repoAnalysisStatus === "IN_PROGRESS") {
           toast.success("Repository analysis completed!");
         } else if (
@@ -129,10 +103,8 @@ export default function ProjectDetailPage() {
       }
     };
 
-    // Check immediately
     checkRepoAnalysis();
 
-    // Poll every 5 seconds if analysis is in progress
     const interval = setInterval(() => {
       if (
         repoAnalysisStatus === "IN_PROGRESS" ||
@@ -145,46 +117,13 @@ export default function ProjectDetailPage() {
     return () => clearInterval(interval);
   }, [id, project?.repositoryUrl, repoAnalysisStatus]);
 
-  // Listen for milestone generation events from chat (no toast, UI shows progress)
+  // Verify user is sponsor/project owner
   useEffect(() => {
-    const handleMilestoneGeneration = (event: CustomEvent) => {
-      // Event received - progress will be shown in the milestone tab
-      if (event.detail.projectId === id) {
-        console.log(
-          "[Milestone Gen] Event received, WebSocket will handle updates"
-        );
-      }
-    };
-
-    window.addEventListener(
-      "milestone-generation-started" as any,
-      handleMilestoneGeneration
-    );
-    return () => {
-      window.removeEventListener(
-        "milestone-generation-started" as any,
-        handleMilestoneGeneration
-      );
-    };
-  }, [id]);
-
-  const isProjectOwner = user?.id === project?.sponsorId;
-  const isContributor = user?.role === "CONTRIBUTOR";
-  const isSponsor = user?.role === "SPONSOR" || user?.role === "ADMIN";
-
-  const handleClaimTask = async (subMilestoneId: string) => {
-    try {
-      await claimSubMilestone.mutateAsync({
-        subMilestoneId,
-        data: {},
-      });
-      toast.success("Task claimed successfully");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to claim task";
-      toast.error(message);
+    if (project && user && project.sponsorId !== user.id) {
+      toast.error("You don't have access to this page");
+      router.push("/contributor/projects");
     }
-  };
+  }, [project, user, router]);
 
   const handleGenerateMilestones = async (
     prompt: string,
@@ -195,7 +134,7 @@ export default function ProjectDetailPage() {
         id: "ai-generate",
       });
 
-      await api.ai.generateMilestones({
+      await apiClient.post("/api/ai/milestones/generate", {
         projectId: id,
         prompt,
         repositoryUrl: project?.repositoryUrl,
@@ -206,7 +145,6 @@ export default function ProjectDetailPage() {
         id: "ai-generate",
       });
 
-      // Connect to streaming endpoint for real-time updates
       const token = localStorage.getItem("jwt_token");
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const eventSource = new EventSource(
@@ -249,27 +187,25 @@ export default function ProjectDetailPage() {
         }
       };
 
-      eventSource.onerror = (error) => {
-        console.error("SSE Error:", error);
+      eventSource.onerror = () => {
         eventSource.close();
         toast.error("Connection lost. Please refresh to see results.", {
           id: "ai-generate",
         });
       };
 
-      // Timeout after 5 minutes
       setTimeout(() => {
         eventSource.close();
         toast.error("Generation timed out. Please check project page.", {
           id: "ai-generate",
         });
       }, 300000);
-    } catch (error: any) {
-      console.error("Failed to generate milestones:", error);
-      toast.error(
-        error.response?.data?.error || "Failed to generate milestones",
-        { id: "ai-generate" }
-      );
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to generate milestones";
+      toast.error(message, { id: "ai-generate" });
     }
   };
 
@@ -308,7 +244,7 @@ export default function ProjectDetailPage() {
                       The project you&apos;re looking for doesn&apos;t exist.
                     </p>
                   </div>
-                  <Button onClick={() => router.push("/projects")}>
+                  <Button onClick={() => router.push("/sponsor/projects")}>
                     Back to Projects
                   </Button>
                 </div>
@@ -331,14 +267,15 @@ export default function ProjectDetailPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        {/* Header */}
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href="/projects">Projects</BreadcrumbLink>
+                <BreadcrumbLink href="/sponsor/projects">
+                  Projects
+                </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -347,7 +284,6 @@ export default function ProjectDetailPage() {
             </BreadcrumbList>
           </Breadcrumb>
 
-          {/* Repository Analysis Status Indicator */}
           {project.repositoryUrl &&
             (repoAnalysisStatus === "IN_PROGRESS" ||
               repoAnalysisStatus === "QUEUED") && (
@@ -362,36 +298,27 @@ export default function ProjectDetailPage() {
           </div>
         </header>
 
-        {/* Main Content */}
         <div className="flex flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6">
-          {/* Tabs */}
           <Tabs
-            defaultValue="milestones"
+            defaultValue="overview"
             className="space-y-6 h-full flex flex-col"
           >
             <div className="flex items-center justify-between shrink-0">
               <TabsList>
-                {/* Only show Overview tab for sponsors/project owners */}
-                {isSponsor && (
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                )}
+                <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="milestones">Milestones</TabsTrigger>
               </TabsList>
             </div>
 
-            {/* Overview Tab - Only for Sponsors */}
-            {isSponsor && (
-              <TabsContent value="overview" className="space-y-4">
-                <OverviewTab
-                  project={project}
-                  progress={completionProgress}
-                  completedMilestones={completedMilestones}
-                  totalMilestones={totalMilestones}
-                />
-              </TabsContent>
-            )}
+            <TabsContent value="overview" className="space-y-4">
+              <OverviewTab
+                project={project}
+                progress={completionProgress}
+                completedMilestones={completedMilestones}
+                totalMilestones={totalMilestones}
+              />
+            </TabsContent>
 
-            {/* Milestones Tab - Available for All */}
             <TabsContent
               value="milestones"
               className="flex-1 h-full data-[state=active]:flex flex-col"
@@ -404,13 +331,13 @@ export default function ProjectDetailPage() {
                 progress={generationProgress}
                 streamedMilestones={streamedMilestones}
                 isGenerating={isGenerating}
-                isContributor={isContributor}
-                isSponsor={isSponsor}
+                isContributor={false}
+                isSponsor={true}
                 onMilestoneUpdate={async (milestoneId, data) => {
                   try {
                     await updateMilestone.mutateAsync({ milestoneId, data });
                     toast.success("Milestone updated successfully");
-                  } catch (error) {
+                  } catch {
                     toast.error("Failed to update milestone");
                   }
                 }}
@@ -421,13 +348,13 @@ export default function ProjectDetailPage() {
                       data,
                     });
                     toast.success("Sub-milestone updated successfully");
-                  } catch (error) {
+                  } catch {
                     toast.error("Failed to update sub-milestone");
                   }
                 }}
                 onSubMilestoneClick={(milestoneId, subMilestoneId) => {
                   router.push(
-                    `/projects/${id}/submilestones/${subMilestoneId}`
+                    `/sponsor/projects/${id}/submilestones/${subMilestoneId}`
                   );
                 }}
                 onGenerateMilestones={handleGenerateMilestones}

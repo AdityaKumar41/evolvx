@@ -97,6 +97,7 @@ export interface OrganizationMember {
 }
 
 export interface Project {
+  totalFunded: any;
   id: string;
   title: string;
   description: string;
