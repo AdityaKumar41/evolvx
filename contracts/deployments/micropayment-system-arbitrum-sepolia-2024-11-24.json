@@ -1,0 +1,49 @@
+{
+  "network": "arbitrum-sepolia",
+  "chainId": 421614,
+  "deployer": "0x4D43399293B51C6Fde3D84D7ECC548477A05b84e",
+  "timestamp": "2024-11-24T00:30:00.000Z",
+  "contracts": {
+    "SessionKeyRegistry": {
+      "address": "0xA9F7B7B23CeCb5a9E9ee0eBD022e340b4667e215",
+      "txHash": "0x8a35387994661b09e7d8dd14d4788d521477b9f865304f838bb22dd8e3d3ddd6",
+      "blockNumber": 218262774,
+      "gasUsed": 649859,
+      "verified": true
+    },
+    "MicropaymentManager": {
+      "address": "0x0583704EbB49129a6200E0325FA324bb44780254",
+      "txHash": "0x962659b7e4489f15fa3e7b21d327605e8eaa90c3ec96184b70907fc08ab1c890",
+      "blockNumber": 218262781,
+      "gasUsed": 547060,
+      "verified": true
+    },
+    "SmartAccountV2": {
+      "address": "0x4e9CCfdAA8A3141F7c2DB6169649B5BCa05684A1",
+      "txHash": "0xc5bfc7d90ae144a92837ddc921a7f11d90f758f2dc70044803245a3bbdb1e2bf",
+      "blockNumber": 218262795,
+      "gasUsed": 893144,
+      "verified": true
+    },
+    "MicropaymentPaymaster": {
+      "address": "0xFf3F9D9E5a6AE2aEff5B4Aea3889f9D1925603eb",
+      "txHash": "0x8721ed4ab20033490acf2769ec1b64e3ac9f4295ec78ac3833dd01f609b9bd9c",
+      "blockNumber": 218262810,
+      "gasUsed": 715974,
+      "verified": true,
+      "fundingTxHash": "0xf12ecd801197942c61796872630436e5fe1061caeb57df68eaa40853c376734b",
+      "fundingAmount": "0.01 ETH"
+    }
+  },
+  "configuration": {
+    "entryPoint": "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+    "wpolToken": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
+    "treasury": "0x4D43399293B51C6Fde3D84D7ECC548477A05b84e",
+    "minPaymentPerPrompt": "0.001 WPOL",
+    "maxPaymentPerPrompt": "10 WPOL"
+  },
+  "totalGasUsed": 2861221,
+  "totalCostETH": "0.00005722442",
+  "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+  "explorerUrl": "https://sepolia.arbiscan.io"
+}

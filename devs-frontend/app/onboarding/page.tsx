@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft } from "lucide-react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSignMessage } from "wagmi";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { UserRole } from "@/lib/types";
-import { useLinkWallet, useCompleteOnboarding } from "@/hooks/use-auth";
+import { useCompleteOnboarding } from "@/hooks/use-auth";
 import { useAuth } from "@/components/auth-provider";
+import { AASetupStep } from "@/components/onboarding/aa-setup-step-simple";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
 
 const transitionProps = {
   type: "spring" as const,
@@ -68,16 +69,14 @@ function ChipButton({
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
-  const { refreshUser } = useAuth();
-  const linkWallet = useLinkWallet();
+  const { refreshUser, user } = useAuth();
   const completeOnboarding = useCompleteOnboarding();
+  const { address, isConnected } = useAccount();
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [walletAddress, setWalletAddress] = useState<string>("");
-  const [isWalletLinked, setIsWalletLinked] = useState(false);
+  const [smartAccountAddress, setSmartAccountAddress] = useState<string>("");
   const [isGithubConnected, setIsGithubConnected] = useState(false);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [formData, setFormData] = useState({
     displayName: "",
@@ -87,6 +86,11 @@ export default function OnboardingPage() {
   });
 
   const totalSteps = 5;
+
+  // Sync wagmi wallet connection state
+  useEffect(() => {
+    setIsWalletConnected(isConnected);
+  }, [isConnected]);
 
   // If a JWT token exists (set by the auth callback), fetch current user
   // to determine GitHub/wallet connection and pre-fill profile fields.
@@ -117,14 +121,13 @@ export default function OnboardingPage() {
               user.role === UserRole.SPONSOR
                 ? "/dashboard/sponsor"
                 : "/dashboard/contributor";
-            router.push(dashboardPath);
+            router.replace(dashboardPath); // Use replace to prevent back navigation
             return;
           }
 
           setIsGithubConnected(!!user.githubId);
-          if (user.walletAddress) {
-            setWalletAddress(user.walletAddress);
-            setIsWalletLinked(true);
+          if (user.smartAccountAddress) {
+            setSmartAccountAddress(user.smartAccountAddress);
           }
           if (user.name) {
             setFormData((prev) => ({ ...prev, displayName: user.name }));
@@ -163,33 +166,16 @@ export default function OnboardingPage() {
     };
   }, [router]);
 
-  const handleWalletLink = async () => {
-    if (!address) return;
-
-    try {
-      const message = `Sign this message to link your wallet to DevSponsor.\n\nWallet: ${address}\nTimestamp: ${Date.now()}`;
-      const signature = await signMessageAsync({ message });
-
-      await linkWallet.mutateAsync({
-        walletAddress: address,
-        signature,
-      });
-
-      setWalletAddress(address);
-      setIsWalletLinked(true);
-      toast.success("Wallet linked successfully!");
-    } catch (error) {
-      console.error("Failed to link wallet:", error);
-      toast.error("Failed to link wallet");
-    }
+  const handleAAWalletCreated = (address: string) => {
+    setSmartAccountAddress(address);
   };
 
   const handleGithubConnect = () => {
     // Store the current onboarding state before redirect
     if (typeof window !== "undefined") {
       localStorage.setItem("onboarding_step", currentStep.toString());
-      if (walletAddress) {
-        localStorage.setItem("onboarding_wallet", walletAddress);
+      if (smartAccountAddress) {
+        localStorage.setItem("onboarding_smart_account", smartAccountAddress);
       }
     }
     // Redirect to backend GitHub OAuth endpoint
@@ -222,21 +208,24 @@ export default function OnboardingPage() {
           ? formData.skills.split(",").map((s) => s.trim())
           : undefined,
         organizationName: formData.organization || undefined,
+        walletAddress: address, // RainbowKit wallet address
       });
 
-      // Refresh user data in AuthProvider to get updated role
+      // The token has been updated in localStorage by the mutation
+      // Now refresh user data to get the updated onboardingCompleted flag
       await refreshUser();
 
-      toast.success("Onboarding completed!");
+      toast.success("Welcome to EvolvX! 🎉");
 
+      // Use replace instead of push to prevent back navigation to onboarding
       // Redirect based on the role from the response
       if (
         response.user?.role === UserRole.SPONSOR ||
         response.user?.role === UserRole.ADMIN
       ) {
-        router.push("/dashboard/sponsor");
+        router.replace("/dashboard/sponsor");
       } else {
-        router.push("/dashboard/contributor");
+        router.replace("/dashboard/contributor");
       }
     } catch (error) {
       console.error("Failed to complete onboarding:", error);
@@ -247,11 +236,11 @@ export default function OnboardingPage() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return isConnected && isWalletLinked;
+        return isGithubConnected; // GitHub first
       case 2:
-        return isGithubConnected;
+        return isWalletConnected && selectedRole !== null; // Wallet + Role second
       case 3:
-        return selectedRole !== null;
+        return !!smartAccountAddress; // AA wallet third (for AI micropayments only)
       case 4:
         return formData.displayName.trim() !== "" && formData.bio.trim() !== "";
       case 5:
@@ -291,36 +280,6 @@ export default function OnboardingPage() {
             {currentStep === 1 && (
               <div>
                 <h1 className="text-white text-xl font-semibold mb-4">
-                  Connect Your Wallet
-                </h1>
-                <p className="text-zinc-400 text-base mb-12">
-                  Link your wallet to get started with DevSponsor
-                </p>
-                <div className="flex flex-col items-center gap-6">
-                  <ConnectButton />
-                  {isConnected && !isWalletLinked && (
-                    <button
-                      onClick={handleWalletLink}
-                      className="px-6 py-3 rounded-full font-medium bg-blue-500 text-white hover:bg-blue-600 transition-all"
-                    >
-                      Link Wallet
-                    </button>
-                  )}
-                  {isWalletLinked && (
-                    <div className="text-center">
-                      <p className="text-zinc-400 text-sm">Wallet Connected</p>
-                      <p className="text-white font-mono text-sm mt-1">
-                        {address?.slice(0, 6)}...{address?.slice(-4)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {currentStep === 2 && (
-              <div>
-                <h1 className="text-white text-xl font-semibold mb-4">
                   Connect GitHub Account
                 </h1>
                 <p className="text-zinc-400 text-base mb-12">
@@ -345,31 +304,71 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {currentStep === 3 && (
+            {currentStep === 2 && (
               <div>
                 <h1 className="text-white text-xl font-semibold mb-4">
-                  Choose Your Role
+                  Connect Wallet & Choose Role
                 </h1>
-                <p className="text-zinc-400 text-base mb-12">
-                  Select how you want to participate
+                <p className="text-zinc-400 text-base mb-8">
+                  Connect your wallet for on-chain transactions and select your
+                  role
                 </p>
-                <motion.div
-                  className="flex flex-wrap gap-3 overflow-visible"
-                  layout
-                  transition={transitionProps}
+
+                {/* Wallet Connection Section */}
+                <div className="mb-8 p-6 border border-zinc-800 bg-[rgba(25,25,28,0.5)] rounded-3xl">
+                  <h3 className="text-white text-base font-medium mb-3">
+                    Connect Your Wallet
+                  </h3>
+                  <p className="text-zinc-400 text-sm mb-4">
+                    You'll use this wallet to pay gas fees for on-chain
+                    transactions (milestone submissions, etc.)
+                  </p>
+                  <ConnectButton />
+                  {isConnected && address && (
+                    <p className="text-green-400 text-sm mt-3">
+                      ✓ Wallet connected: {address.slice(0, 6)}...
+                      {address.slice(-4)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Role Selection Section */}
+                <div
+                  className={
+                    isWalletConnected ? "" : "opacity-50 pointer-events-none"
+                  }
                 >
-                  <ChipButton
-                    label="Sponsor"
-                    isSelected={selectedRole === UserRole.SPONSOR}
-                    onClick={() => setSelectedRole(UserRole.SPONSOR)}
-                  />
-                  <ChipButton
-                    label="Contributor"
-                    isSelected={selectedRole === UserRole.CONTRIBUTOR}
-                    onClick={() => setSelectedRole(UserRole.CONTRIBUTOR)}
-                  />
-                </motion.div>
+                  <h3 className="text-white text-base font-medium mb-3">
+                    Choose Your Role
+                  </h3>
+                  <p className="text-zinc-400 text-sm mb-4">
+                    Select how you want to participate
+                  </p>
+                  <motion.div
+                    className="flex flex-wrap gap-3 overflow-visible"
+                    layout
+                    transition={transitionProps}
+                  >
+                    <ChipButton
+                      label="Sponsor"
+                      isSelected={selectedRole === UserRole.SPONSOR}
+                      onClick={() => setSelectedRole(UserRole.SPONSOR)}
+                    />
+                    <ChipButton
+                      label="Contributor"
+                      isSelected={selectedRole === UserRole.CONTRIBUTOR}
+                      onClick={() => setSelectedRole(UserRole.CONTRIBUTOR)}
+                    />
+                  </motion.div>
+                </div>
               </div>
+            )}
+
+            {currentStep === 3 && (
+              <AASetupStep
+                userId={user?.id}
+                onComplete={() => setCurrentStep(4)}
+              />
             )}
 
             {currentStep === 4 && (
@@ -456,18 +455,42 @@ export default function OnboardingPage() {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-white font-medium">Wallet</h3>
                       <button
-                        onClick={() => setCurrentStep(1)}
+                        onClick={() => setCurrentStep(2)}
                         className="text-blue-400 hover:text-blue-300 transition-colors text-sm"
                       >
                         Edit
                       </button>
                     </div>
                     <p className="text-zinc-400 font-mono text-sm">
-                      {walletAddress
-                        ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(
-                            -4
-                          )}`
+                      {address
+                        ? `${address.slice(0, 6)}...${address.slice(-4)}`
                         : "Not connected"}
+                    </p>
+                    <p className="text-zinc-500 text-xs mt-1">
+                      For on-chain transactions (you pay gas)
+                    </p>
+                  </div>
+
+                  <div className="p-6 border border-zinc-800 bg-[rgba(25,25,28,0)] rounded-3xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-white font-medium">Smart Wallet</h3>
+                      <button
+                        onClick={() => setCurrentStep(3)}
+                        className="text-blue-400 hover:text-blue-300 transition-colors text-sm"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <p className="text-zinc-400 font-mono text-sm">
+                      {smartAccountAddress
+                        ? `${smartAccountAddress.slice(
+                            0,
+                            6
+                          )}...${smartAccountAddress.slice(-4)}`
+                        : "Not created"}
+                    </p>
+                    <p className="text-zinc-500 text-xs mt-1">
+                      For AI micropayments (gasless)
                     </p>
                   </div>
 
@@ -475,7 +498,7 @@ export default function OnboardingPage() {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-white font-medium">GitHub</h3>
                       <button
-                        onClick={() => setCurrentStep(2)}
+                        onClick={() => setCurrentStep(1)}
                         className="text-blue-400 hover:text-blue-300 transition-colors text-sm"
                       >
                         Edit

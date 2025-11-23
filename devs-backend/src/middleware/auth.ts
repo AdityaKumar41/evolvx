@@ -7,6 +7,7 @@ interface JWTDecoded {
   id: string;
   githubId: string;
   walletAddress?: string;
+  smartAccountAddress?: string;
   role: string;
   iat?: number;
   exp?: number;
@@ -17,6 +18,7 @@ export interface AuthRequest extends Request {
     id: string;
     githubId: string;
     walletAddress?: string;
+    smartAccountAddress?: string;
     role: string;
   };
 }
@@ -44,6 +46,7 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
       id: decoded.id,
       githubId: decoded.githubId,
       walletAddress: decoded.walletAddress,
+      smartAccountAddress: decoded.smartAccountAddress,
       role: decoded.role,
     };
 

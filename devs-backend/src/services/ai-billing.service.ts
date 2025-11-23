@@ -1,10 +1,10 @@
 import { Prisma, $Enums } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { logger } from '../utils/logger';
 
 // Use Prisma enum types
 type AIWorkflowType = $Enums.AIWorkflowType;
 type BillingMethod = $Enums.BillingMethod;
-type BillingMode = $Enums.BillingMode;
 
 // Enum value constants for comparisons
 const AIWorkflowTypeEnum = {
@@ -16,15 +16,8 @@ const AIWorkflowTypeEnum = {
 };
 
 const BillingMethodEnum = {
-  CREDIT: 'CREDIT' as BillingMethod,
   MICROPAYMENT: 'MICROPAYMENT' as BillingMethod,
   FREE: 'FREE' as BillingMethod,
-};
-
-const BillingModeEnum = {
-  CREDIT: 'CREDIT' as BillingMode,
-  MICROPAYMENT: 'MICROPAYMENT' as BillingMode,
-  HYBRID: 'HYBRID' as BillingMode,
 };
 
 export interface TokenUsage {
@@ -99,17 +92,50 @@ class AIBillingService {
   };
 
   /**
-   * Calculate cost based on token usage and model
+   * Calculate cost in USD for given tokens
    */
   calculateCost(inputTokens: number, outputTokens: number, model: string = 'gpt-4'): number {
-    const config = this.MODEL_RATES[model] || this.MODEL_RATES['gpt-4'];
-    const inputCost = (inputTokens / 1000) * config.inputCostPer1K;
-    const outputCost = (outputTokens / 1000) * config.outputCostPer1K;
+    const rates = this.MODEL_RATES[model] || this.MODEL_RATES['gpt-4'];
+    const inputCost = (inputTokens / 1000) * rates.inputCostPer1K;
+    const outputCost = (outputTokens / 1000) * rates.outputCostPer1K;
     return parseFloat((inputCost + outputCost).toFixed(6));
   }
 
   /**
+   * Calculate contextual multiplier based on complexity
+   */
+  calculateMultiplier(context?: {
+    isHighPriority?: boolean;
+    isComplexWorkflow?: boolean;
+    promptLength?: number;
+  }): number {
+    let multiplier = 1.0;
+
+    if (!context) return multiplier;
+
+    // Priority multiplier
+    if (context.isHighPriority) {
+      multiplier *= 1.2;
+    }
+
+    // Workflow complexity
+    if (context.isComplexWorkflow) {
+      multiplier *= 1.5;
+    }
+
+    // Prompt complexity
+    if (context.promptLength && context.promptLength > 5000) {
+      multiplier *= 1.2;
+    } else if (context.promptLength && context.promptLength > 2000) {
+      multiplier *= 1.1;
+    }
+
+    return multiplier;
+  }
+
+  /**
    * Track AI usage and create log entry
+   * All usage is billed via micropayment (pay-per-use) except FREE workflows
    */
   async trackUsage(
     userId: string,
@@ -123,44 +149,11 @@ class AIBillingService {
     const totalTokens = inputTokens + outputTokens;
     const cost = this.calculateCost(inputTokens, outputTokens, model);
 
-    // Hierarchical billing logic - CRITICAL: Order matters!
+    // Simple billing logic: CHAT uses FREE (OpenRouter), everything else uses MICROPAYMENT
     let billedVia: BillingMethod;
-    let billingMode: BillingMode = BillingModeEnum.CREDIT;
-
-    // Get project billing mode if projectId provided
-    if (projectId) {
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        select: { billingMode: true },
-      });
-      if (project?.billingMode) {
-        billingMode = project.billingMode as BillingMode;
-      }
-    }
-
-    // Priority 1: CHAT workflow always uses FREE (OpenRouter)
     if (workflow === AIWorkflowTypeEnum.CHAT) {
       billedVia = BillingMethodEnum.FREE;
-    }
-    // Priority 2: If billing mode is CREDIT and user has sufficient balance
-    else if (billingMode === BillingModeEnum.CREDIT) {
-      const hasSufficientCredit = await this.checkCreditBalance(userId, cost);
-      if (hasSufficientCredit) {
-        billedVia = BillingMethodEnum.CREDIT;
-      } else {
-        // Insufficient credit - fail (don't fallback in CREDIT-only mode)
-        throw new Error(
-          `Insufficient credit balance. Required: $${cost.toFixed(4)}, Available: $${await this.getCreditBalance(userId)}`
-        );
-      }
-    }
-    // Priority 3: HYBRID mode - try credit first, fallback to micropayment
-    else if (billingMode === BillingModeEnum.HYBRID) {
-      const hasSufficientCredit = await this.checkCreditBalance(userId, cost);
-      billedVia = hasSufficientCredit ? BillingMethodEnum.CREDIT : BillingMethodEnum.MICROPAYMENT;
-    }
-    // Priority 4: MICROPAYMENT mode (pay-per-use)
-    else {
+    } else {
       billedVia = BillingMethodEnum.MICROPAYMENT;
     }
 
@@ -180,78 +173,12 @@ class AIBillingService {
       },
     });
 
-    // Deduct cost based on billing method
-    if (billedVia === BillingMethodEnum.CREDIT) {
-      await this.deductCredit(userId, cost);
-    } else if (billedVia === BillingMethodEnum.MICROPAYMENT) {
+    // Trigger micropayment if needed
+    if (billedVia === BillingMethodEnum.MICROPAYMENT) {
       await this.triggerMicropayment(userId, projectId, cost);
     }
-    // FREE doesn't require any billing action
 
     return usageLog.id;
-  }
-
-  /**
-   * Get user's current credit balance
-   */
-  async getCreditBalance(userId: string): Promise<number> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { settings: true },
-    });
-
-    if (!user || !user.settings) {
-      return 0;
-    }
-
-    const settings = (user.settings as Record<string, unknown>) || {};
-    return (settings.creditBalance as number) || 0;
-  }
-
-  /**
-   * Check if user has sufficient credit balance
-   */
-  async checkCreditBalance(userId: string, requiredAmount: number): Promise<boolean> {
-    const creditBalance = await this.getCreditBalance(userId);
-    return creditBalance >= requiredAmount;
-  }
-
-  /**
-   * Deduct credit from user's balance
-   */
-  async deductCredit(userId: string, amount: number): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { settings: true },
-    });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const settings = (user.settings as Record<string, unknown>) || {};
-    const currentBalance = (settings.creditBalance as number) || 0;
-
-    if (currentBalance < amount) {
-      throw new Error(
-        `Insufficient credit balance. Required: $${amount}, Available: $${currentBalance}`
-      );
-    }
-
-    const newBalance = currentBalance - amount;
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        settings: {
-          ...settings,
-          creditBalance: newBalance,
-          lastCreditDeduction: new Date().toISOString(),
-        },
-      },
-    });
-
-    console.log(`Deducted $${amount} from user ${userId}. New balance: $${newBalance}`);
   }
 
   /**
@@ -263,7 +190,6 @@ class AIBillingService {
     amount: number
   ): Promise<void> {
     // Create a pending micropayment record
-    // This will be processed by blockchain service
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { walletAddress: true },
@@ -275,13 +201,13 @@ class AIBillingService {
 
     // TODO: Integrate with blockchain service to trigger actual payment
     // For now, just log the requirement
-    console.log(`Micropayment required: User ${userId}, Amount: $${amount}, Project: ${projectId}`);
+    logger.info(`Micropayment required: User ${userId}, Amount: $${amount}, Project: ${projectId}`);
 
     // Create notification for user
     await prisma.notification.create({
       data: {
         userId,
-        type: 'PAYMENT_SENT', // Reusing existing type, could add AI_PAYMENT_REQUIRED
+        type: 'PAYMENT_SENT',
         title: 'AI Usage Payment Required',
         message: `Payment of $${amount.toFixed(4)} required for AI usage. Please complete the payment to continue.`,
       },
@@ -388,37 +314,6 @@ class AIBillingService {
     }
 
     return summary;
-  }
-
-  /**
-   * Add credit to user's balance
-   */
-  async addCredit(userId: string, amount: number): Promise<void> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { settings: true },
-    });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    const settings = (user.settings as Record<string, unknown>) || {};
-    const currentBalance = (settings.creditBalance as number) || 0;
-    const newBalance = currentBalance + amount;
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        settings: {
-          ...settings,
-          creditBalance: newBalance,
-          lastCreditAddition: new Date().toISOString(),
-        },
-      },
-    });
-
-    console.log(`Added $${amount} to user ${userId}. New balance: $${newBalance}`);
   }
 
   /**

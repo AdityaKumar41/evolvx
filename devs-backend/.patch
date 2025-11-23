@@ -1,0 +1,9 @@
+This file contains all the necessary fixes for smart-account.service.ts
+
+Changes needed:
+1. Fix buyCredits - convert Decimal to number
+2. Fix deductCredits - use database instead of contract
+3. Fix registerSessionKey - use database instead of contract  
+4. Fix fundSmartAccount - use database instead of contract
+
+All functions should work in "virtual mode" without blockchain calls.

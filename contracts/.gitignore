@@ -1,0 +1,10 @@
+# Foundry
+cache/
+out/
+lib/
+
+# Environment
+.env
+
+# Node
+node_modules/

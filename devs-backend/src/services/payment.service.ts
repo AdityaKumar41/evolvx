@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { notificationService } from './notification.service';
 import { publishEvent, KAFKA_TOPICS } from '../lib/kafka';
 import { ContributionStatus, PaymentMode } from '@prisma/client';
+import { escrowService } from './escrow.service';
 
 export interface PaymentRequest {
   contributionId: string;
@@ -74,14 +75,12 @@ export class PaymentService {
       let txHash: string;
 
       if (paymentMode === PaymentMode.ESCROW) {
-        // Escrow mode: Direct payment from escrow contract
-        txHash = await this.processEscrowPayment({
-          contractAddress: project.onchainContractAddress,
-          recipientAddress: request.contributorAddress,
-          amount: paymentAmount,
-          token: project.tokenAddress || 'USDC',
-          proofHash: request.proofHash,
-        });
+        // Escrow mode: Release payment from escrow contract with Merkle proof
+        const escrowResult = await escrowService.releasePayment(
+          request.contributionId,
+          request.contributorAddress
+        );
+        txHash = escrowResult.txHash;
       } else if (paymentMode === PaymentMode.YIELD) {
         // Yield mode: Payment comes from yield pool
         txHash = await this.processEscrowPayment({

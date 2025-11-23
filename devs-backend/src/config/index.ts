@@ -55,6 +55,23 @@ const envSchema = z.object({
   RELAYER_PRIVATE_KEY: z.string().optional(),
   GAS_LIMIT: z.string().default('500000'),
 
+  // Account Abstraction Contracts
+  AA_ROOT_MANAGER_ADDRESS: z.string().default('0xe84bBe28F68F3091b7C263Dc52684b378b9a4E54'),
+  AA_SMART_ACCOUNT_FACTORY_ADDRESS: z
+    .string()
+    .default('0x7A8Dc375b57C4436Fb89041A089846f5a46B9415'),
+  AA_CREDIT_MANAGER_ADDRESS: z.string().default('0x2A90CCE97dfF2C06191FF421039835CFa8134767'),
+  AA_CREDIT_PAYMASTER_ADDRESS: z.string().default('0x6dA662e707dd41abC090cd22f624168Da12E8c74'),
+  AA_MILESTONE_MANAGER_ADDRESS: z.string().default('0x33D8B20e845828f053AeA2FA8114d0B38d8E87e4'),
+  AA_ESCROW_AND_YIELD_ADDRESS: z.string().default('0x2D094af43eb4BC261Dfe7Fe00C1cc035829D81C8'),
+  AA_MERKLE_COMMIT_STORAGE_ADDRESS: z
+    .string()
+    .default('0xb68401A0cc097BB7BdD6c766786F242520d8BA19'),
+  AA_SESSION_KEY_REGISTRY_ADDRESS: z.string().default('0x0Af4E01864234543B55788b80e07b31D9657F49B'),
+  AA_ENTRY_POINT_ADDRESS: z.string().default('0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'),
+  WPOL_TOKEN_ADDRESS: z.string().default('0x980B62Da83eFf3D4576C647993b0c1D7faf17c73'),
+  ARBITRUM_SEPOLIA_CHAIN_ID: z.string().default('421614'),
+
   // AI
   OPENROUTER_API_KEY: z.string(),
   OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
@@ -156,6 +173,20 @@ export const config = {
     verifierContractAddress: parsedEnv.data.VERIFIER_CONTRACT_ADDRESS,
     relayerPrivateKey: parsedEnv.data.RELAYER_PRIVATE_KEY,
     gasLimit: parseInt(parsedEnv.data.GAS_LIMIT),
+    // Account Abstraction
+    aa: {
+      rootManager: parsedEnv.data.AA_ROOT_MANAGER_ADDRESS,
+      smartAccountFactory: parsedEnv.data.AA_SMART_ACCOUNT_FACTORY_ADDRESS,
+      creditManager: parsedEnv.data.AA_CREDIT_MANAGER_ADDRESS,
+      creditPaymaster: parsedEnv.data.AA_CREDIT_PAYMASTER_ADDRESS,
+      milestoneManager: parsedEnv.data.AA_MILESTONE_MANAGER_ADDRESS,
+      escrowAndYield: parsedEnv.data.AA_ESCROW_AND_YIELD_ADDRESS,
+      merkleCommitStorage: parsedEnv.data.AA_MERKLE_COMMIT_STORAGE_ADDRESS,
+      sessionKeyRegistry: parsedEnv.data.AA_SESSION_KEY_REGISTRY_ADDRESS,
+      entryPoint: parsedEnv.data.AA_ENTRY_POINT_ADDRESS,
+      wpolToken: parsedEnv.data.WPOL_TOKEN_ADDRESS,
+      chainId: parseInt(parsedEnv.data.ARBITRUM_SEPOLIA_CHAIN_ID),
+    },
   },
   ai: {
     openRouterApiKey: parsedEnv.data.OPENROUTER_API_KEY,

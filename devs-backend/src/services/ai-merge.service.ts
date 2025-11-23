@@ -1,6 +1,10 @@
 import { NotificationType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { githubService } from './github.service';
+import { MilestonePayoutService } from './milestone-payout.service';
+import { MerkleTreeBuilderService } from './merkle-tree-builder.service';
+import { ethers } from 'ethers';
+import { logger } from '../utils/logger';
 
 // Enum values as constants until Prisma regenerates properly
 enum TaskType {
@@ -187,6 +191,19 @@ class AIMergeService {
           },
         });
 
+        // Trigger payout processing (async - don't block merge notification)
+        const verifierKey = process.env.VERIFIER_PRIVATE_KEY;
+        if (verifierKey) {
+          this.processPayout(prSubmissionId, verifierKey).catch((error) => {
+            logger.error(`Failed to process payout for PR ${prSubmissionId}:`, error);
+          });
+        } else {
+          logger.warn(
+            'VERIFIER_PRIVATE_KEY not set. Skipping automatic payout processing for PR:',
+            prSubmissionId
+          );
+        }
+
         return true;
       } else {
         // Update to failed status
@@ -310,6 +327,153 @@ class AIMergeService {
         ),
       },
     });
+  }
+
+  /**
+   * Process payout after PR is merged and approved
+   * Generates Merkle proof and submits payout request to blockchain
+   */
+  async processPayout(prSubmissionId: string, verifierPrivateKey: string): Promise<void> {
+    try {
+      logger.info(`Processing payout for PR submission ${prSubmissionId}`);
+
+      const prSubmission = await prisma.pRSubmission.findUnique({
+        where: { id: prSubmissionId },
+        include: {
+          contributor: {
+            select: {
+              walletAddress: true,
+              smartAccountAddress: true,
+            },
+          },
+          subMilestone: {
+            include: {
+              milestone: {
+                include: {
+                  project: true,
+                  subMilestones: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!prSubmission) {
+        throw new Error('PR submission not found');
+      }
+
+      if (prSubmission.status !== 'APPROVED' && prSubmission.status !== 'AI_APPROVED') {
+        throw new Error('PR must be approved before payout');
+      }
+
+      const milestone = prSubmission.subMilestone.milestone;
+
+      // Check if milestone is committed to blockchain
+      if (!milestone.isCommittedOnChain || !milestone.merkleRoot) {
+        throw new Error('Milestone not committed to blockchain. Cannot process payout.');
+      }
+
+      // Get all submilestones to rebuild Merkle tree
+      const merkleLeaves = milestone.subMilestones.map((sub) => ({
+        submilestoneId: sub.id,
+        amount: BigInt(ethers.parseUnits(sub.checkpointAmount.toString(), 18).toString()),
+      }));
+
+      // Rebuild Merkle tree
+      const merkleData = MerkleTreeBuilderService.buildMilestoneTree(merkleLeaves);
+
+      // Find current submilestone in leaves
+      const currentLeaf = merkleLeaves.find(
+        (leaf) => leaf.submilestoneId === prSubmission.subMilestoneId
+      );
+
+      if (!currentLeaf) {
+        throw new Error('Submilestone not found in Merkle tree');
+      }
+
+      // Generate proof for this submilestone
+      const proof = MerkleTreeBuilderService.generateProof(merkleData.tree, currentLeaf);
+
+      logger.info(`Generated Merkle proof for submilestone ${prSubmission.subMilestoneId}`);
+
+      // Verify proof locally
+      const isValid = MerkleTreeBuilderService.verifyProof(
+        proof,
+        milestone.merkleRoot,
+        currentLeaf
+      );
+
+      if (!isValid) {
+        throw new Error('Merkle proof verification failed locally');
+      }
+
+      // Get contributor wallet address
+      const contributorAddress =
+        prSubmission.contributor.smartAccountAddress || prSubmission.contributor.walletAddress;
+
+      if (!contributorAddress) {
+        throw new Error('Contributor wallet address not found');
+      }
+
+      // Submit payout request to blockchain
+      const payoutService = new MilestonePayoutService();
+      const txHash = await payoutService.requestPayout(
+        {
+          projectId: milestone.projectId,
+          milestoneId: milestone.id,
+          submilestoneId: prSubmission.subMilestoneId,
+          contributor: contributorAddress,
+          amount: currentLeaf.amount,
+          merkleProof: proof,
+        },
+        verifierPrivateKey
+      );
+
+      logger.info(`Payout request submitted. TxHash: ${txHash}`);
+
+      // Update contribution record
+      await prisma.contribution.create({
+        data: {
+          contributorId: prSubmission.contributorId,
+          subMilestoneId: prSubmission.subMilestoneId,
+          description: `Completed: ${prSubmission.subMilestone.description}`,
+          amountPaid: prSubmission.subMilestone.checkpointAmount.toString(),
+          status: 'PENDING', // Will be marked PAID after on-chain confirmation
+          transactionHash: txHash,
+        },
+      });
+
+      // Update PR submission
+      await prisma.pRSubmission.update({
+        where: { id: prSubmissionId },
+        data: {
+          status: 'PAYOUT_PENDING',
+        },
+      });
+
+      // Notify contributor
+      await prisma.notification.create({
+        data: {
+          userId: prSubmission.contributorId,
+          type: NotificationType.PAYMENT_RECEIVED,
+          title: 'Payout Processing',
+          message: `Your payout for "${prSubmission.subMilestone.description}" is being processed on-chain.`,
+          metadata: JSON.parse(
+            JSON.stringify({
+              prSubmissionId,
+              txHash,
+              amount: currentLeaf.amount.toString(),
+            })
+          ),
+        },
+      });
+
+      logger.info(`Payout processing completed for PR ${prSubmissionId}`);
+    } catch (error) {
+      logger.error(`Failed to process payout for PR ${prSubmissionId}:`, error);
+      throw error;
+    }
   }
 }
 

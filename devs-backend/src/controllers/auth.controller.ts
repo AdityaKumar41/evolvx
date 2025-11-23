@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { smartAccountService } from '../services/smart-account.service';
 
 export class AuthController {
   /**
@@ -45,7 +46,7 @@ export class AuthController {
   }
 
   /**
-   * Link wallet address to user account
+   * Link wallet address to user account and create smart account
    */
   static async linkWallet(req: AuthRequest, res: Response) {
     const { walletAddress, signature, message } = req.body;
@@ -66,16 +67,32 @@ export class AuthController {
       throw new AppError('Invalid signature', 400);
     }
 
+    // Update user with wallet address
     const user = await prisma.user.update({
       where: { id: req.user!.id },
       data: { walletAddress },
     });
 
+    // Create smart account for the user (async - don't block response)
+    if (!user.smartAccountAddress) {
+      smartAccountService
+        .onboardUser(user.id, walletAddress)
+        .then((accountInfo) => {
+          logger.info(
+            `Smart account created for user ${user.id}: ${accountInfo.smartAccountAddress}`
+          );
+        })
+        .catch((error) => {
+          logger.error(`Failed to create smart account for user ${user.id}:`, error);
+        });
+    }
+
     res.json({
-      message: 'Wallet linked successfully',
+      message: 'Wallet linked successfully. Smart account is being created...',
       user: {
         id: user.id,
         walletAddress: user.walletAddress,
+        smartAccountAddress: user.smartAccountAddress,
       },
     });
   }

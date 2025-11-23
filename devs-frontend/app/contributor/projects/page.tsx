@@ -26,8 +26,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, FolderKanban, Users, GitBranch } from "lucide-react";
+import {
+  Search,
+  FolderKanban,
+  Users,
+  GitBranch,
+  Lock,
+  Globe,
+  UserCheck,
+} from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RepoType, JoinRequestStatus } from "@/lib/types";
 
 export default function ContributorProjectsPage() {
   const router = useRouter();
@@ -40,6 +49,67 @@ export default function ContributorProjectsPage() {
       project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       project.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getRepoTypeBadge = (repoType: RepoType) => {
+    switch (repoType) {
+      case RepoType.PUBLIC:
+        return (
+          <Badge variant="outline" className="gap-1">
+            <Globe className="w-3 h-3" />
+            Public
+          </Badge>
+        );
+      case RepoType.PRIVATE_REQUEST:
+        return (
+          <Badge variant="secondary" className="gap-1">
+            <UserCheck className="w-3 h-3" />
+            Request to Join
+          </Badge>
+        );
+      case RepoType.PRIVATE:
+      case RepoType.PRIVATE_INVITE:
+        return (
+          <Badge variant="secondary" className="gap-1">
+            <Lock className="w-3 h-3" />
+            Private
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getJoinStatusBadge = (
+    joinRequestStatus?: JoinRequestStatus | null,
+    hasAccess?: boolean
+  ) => {
+    if (hasAccess) {
+      return (
+        <Badge variant="default" className="gap-1">
+          <UserCheck className="w-3 h-3" />
+          Joined
+        </Badge>
+      );
+    }
+
+    if (joinRequestStatus === JoinRequestStatus.PENDING) {
+      return (
+        <Badge variant="outline" className="gap-1">
+          Pending Approval
+        </Badge>
+      );
+    }
+
+    if (joinRequestStatus === JoinRequestStatus.DECLINED) {
+      return (
+        <Badge variant="destructive" className="gap-1">
+          Request Declined
+        </Badge>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <SidebarProvider>
@@ -109,15 +179,22 @@ export default function ContributorProjectsPage() {
                   }
                 >
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="line-clamp-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="line-clamp-1 flex-1">
                         {project.title}
                       </CardTitle>
-                      <Badge variant="default">Active</Badge>
+                      <div className="flex flex-col gap-1 items-end">
+                        <Badge variant="default">Active</Badge>
+                        {getRepoTypeBadge(project.repoType)}
+                      </div>
                     </div>
                     <CardDescription className="line-clamp-2">
                       {project.description}
                     </CardDescription>
+                    {getJoinStatusBadge(
+                      project.joinRequestStatus,
+                      project.hasAccess
+                    )}
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4 text-sm">

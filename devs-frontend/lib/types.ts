@@ -64,6 +64,8 @@ export interface User {
   avatarUrl?: string;
   role: UserRole;
   walletAddress?: string;
+  smartAccountAddress?: string;
+  creditBalance?: number;
   name?: string;
   bio?: string;
   skills?: string[];
@@ -117,6 +119,8 @@ export interface Project {
   organization?: Organization;
   milestones?: Milestone[];
   uiTemplates?: UITemplate[];
+  hasAccess?: boolean;
+  joinRequestStatus?: JoinRequestStatus | null;
   _count?: {
     milestones: number;
     contributions: number;
@@ -303,6 +307,7 @@ export interface OnboardingData {
   skills?: string[];
   organizationName?: string;
   organizationDescription?: string;
+  walletAddress?: string;
 }
 
 export interface JoinRequest {

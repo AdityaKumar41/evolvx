@@ -30,6 +30,11 @@ import aiRoutes from './routes/ai.routes';
 import githubRoutes from './routes/github.routes';
 import testRoutes from './routes/test.routes';
 import commentRoutes from './routes/comment.routes';
+import walletRoutes from './routes/wallet.routes';
+import micropaymentRoutes from './routes/micropayment.routes';
+import sessionKeyRoutes from './routes/session-key.routes';
+import milestoneBlockchainRoutes from './routes/milestone-blockchain.routes';
+import escrowBlockchainRoutes from './routes/escrow-blockchain.routes';
 
 // Inngest
 import { serve } from 'inngest/express';
@@ -88,6 +93,7 @@ app.use('/api/submilestones', submilestoneRoutes);
 app.use('/api/contributions', contributionRoutes);
 app.use('/api/funding', fundingRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/wallet', walletRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/billing', billingRoutes);
@@ -95,6 +101,10 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/github', githubRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/micropayment', micropaymentRoutes);
+app.use('/api/session-keys', sessionKeyRoutes);
+app.use('/api/milestone-blockchain', milestoneBlockchainRoutes);
+app.use('/api/escrow-blockchain', escrowBlockchainRoutes);
 app.use('/api/test', testRoutes);
 
 // 404 handler

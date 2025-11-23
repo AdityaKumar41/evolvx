@@ -2,6 +2,9 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { MilestoneStatus } from '@prisma/client';
 import { publishEvent, KAFKA_TOPICS } from '../lib/kafka';
+import { MerkleTreeBuilderService } from './merkle-tree-builder.service';
+import { MerkleCommitService } from './merkle-commit.service';
+import { ethers } from 'ethers';
 
 export interface CreateMilestoneData {
   projectId: string;
@@ -607,6 +610,102 @@ export class MilestoneService {
       return updated;
     } catch (error) {
       logger.error('Error unclaiming sub-milestone:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Commit milestone to blockchain via Merkle tree
+   * This should be called after all submilestones are created
+   */
+  async commitMilestoneToBlockchain(
+    milestoneId: string,
+    sponsorPrivateKey: string,
+    metadataUri?: string
+  ) {
+    try {
+      // Get milestone with submilestones
+      const milestone = await prisma.milestone.findUnique({
+        where: { id: milestoneId },
+        include: {
+          subMilestones: true,
+          project: true,
+        },
+      });
+
+      if (!milestone) {
+        throw new Error('Milestone not found');
+      }
+
+      if (milestone.isCommittedOnChain) {
+        throw new Error('Milestone already committed to blockchain');
+      }
+
+      if (!milestone.subMilestones || milestone.subMilestones.length === 0) {
+        throw new Error('Cannot commit milestone without submilestones');
+      }
+
+      logger.info(
+        `Committing milestone ${milestoneId} with ${milestone.subMilestones.length} submilestones to blockchain`
+      );
+
+      // Build Merkle tree from submilestones
+      const merkleLeaves = milestone.subMilestones.map((sub) => ({
+        submilestoneId: sub.id,
+        amount: BigInt(ethers.parseUnits(sub.checkpointAmount.toString(), 18).toString()),
+      }));
+
+      const merkleData = MerkleTreeBuilderService.buildMilestoneTree(merkleLeaves);
+
+      logger.info(`Merkle root generated: ${merkleData.rootHash}`);
+
+      // Calculate total amount
+      const totalAmount = merkleLeaves.reduce((sum, leaf) => sum + leaf.amount, BigInt(0));
+
+      // Commit to blockchain
+      const merkleCommitService = new MerkleCommitService();
+      const txHash = await merkleCommitService.commitMilestone(
+        {
+          projectId: milestone.projectId,
+          milestoneId: milestone.id,
+          rootHash: merkleData.rootHash,
+          totalAmount,
+          submilestoneCount: milestone.subMilestones.length,
+          metadataUri: metadataUri || '',
+        },
+        sponsorPrivateKey
+      );
+
+      logger.info(`Milestone committed to blockchain. TxHash: ${txHash}`);
+
+      // Update database
+      const updated = await prisma.milestone.update({
+        where: { id: milestoneId },
+        data: {
+          merkleRoot: merkleData.rootHash,
+          merkleCommitTxHash: txHash,
+          isCommittedOnChain: true,
+          metadataUri,
+        },
+      });
+
+      // Publish event
+      await publishEvent(KAFKA_TOPICS.MILESTONE_COMMITTED, {
+        milestoneId,
+        projectId: milestone.projectId,
+        merkleRoot: merkleData.rootHash,
+        txHash,
+        submilestoneCount: milestone.subMilestones.length,
+        totalAmount: totalAmount.toString(),
+      });
+
+      return {
+        milestone: updated,
+        merkleRoot: merkleData.rootHash,
+        txHash,
+      };
+    } catch (error) {
+      logger.error('Error committing milestone to blockchain:', error);
       throw error;
     }
   }

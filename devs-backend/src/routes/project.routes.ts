@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { publishEvent, KAFKA_TOPICS } from '../lib/kafka';
 import { inngest } from '../lib/inngest';
 import { z } from 'zod';
+import { ProjectController } from '../controllers/project.controller';
 
 const router: Router = Router();
 
@@ -635,6 +636,27 @@ router.get(
       availableModels: models,
     });
   })
+);
+
+// Submit project to onchain (Merkle tree generation + storage)
+router.post(
+  '/:id/submit-onchain',
+  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  asyncHandler(ProjectController.submitProjectOnchain)
+);
+
+// Deposit to escrow (sponsor deposits funds)
+router.post(
+  '/:id/deposit-escrow',
+  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  asyncHandler(ProjectController.depositToEscrow)
+);
+
+// Get escrow balance
+router.get(
+  '/:id/escrow-balance',
+  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  asyncHandler(ProjectController.getEscrowBalance)
 );
 
 export default router;

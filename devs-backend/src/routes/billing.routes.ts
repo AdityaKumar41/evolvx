@@ -37,60 +37,54 @@ router.get(
   })
 );
 
+// ===== OLD CREDIT BALANCE ROUTES (DEPRECATED - Now using micropayments) =====
 // Get credit balance
-router.get(
-  '/credits/balance',
-  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  asyncHandler(async (req, res) => {
-    const userId = (req as any).user.id; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-    const balance = await aiBillingService.getCreditBalance(userId);
-
-    res.json({ balance });
-  })
-);
+// router.get(
+//   '/credits/balance',
+//   authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+//   asyncHandler(async (req, res) => {
+//     const userId = (req as any).user.id; // eslint-disable-line @typescript-eslint/no-explicit-any
+//     const balance = await aiBillingService.getCreditBalance(userId);
+//     res.json({ balance });
+//   })
+// );
 
 // Add credits (admin/payment webhook)
-router.post(
-  '/credits/add',
-  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  asyncHandler(async (req, res) => {
-    const userId = (req as any).user.id; // eslint-disable-line @typescript-eslint/no-explicit-any
-    const { amount } = req.body;
-
-    if (!amount || amount <= 0) {
-      throw new AppError('Valid amount is required', 400);
-    }
-
-    const newBalance = await aiBillingService.addCredit(userId, amount);
-
-    res.json({
-      message: 'Credits added successfully',
-      balance: newBalance,
-    });
-  })
-);
+// router.post(
+//   '/credits/add',
+//   authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+//   asyncHandler(async (req, res) => {
+//     const userId = (req as any).user.id; // eslint-disable-line @typescript-eslint/no-explicit-any
+//     const { amount } = req.body;
+//     if (!amount || amount <= 0) {
+//       throw new AppError('Valid amount is required', 400);
+//     }
+//     const newBalance = await aiBillingService.addCredit(userId, amount);
+//     res.json({
+//       message: 'Credits added successfully',
+//       balance: newBalance,
+//     });
+//   })
+// );
 
 // Deduct credits (internal use)
-router.post(
-  '/credits/deduct',
-  authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  asyncHandler(async (req, res) => {
-    const userId = (req as any).user.id; // eslint-disable-line @typescript-eslint/no-explicit-any
-    const { amount } = req.body;
-
-    if (!amount || amount <= 0) {
-      throw new AppError('Valid amount is required', 400);
-    }
-
-    const newBalance = await aiBillingService.deductCredit(userId, amount);
-
-    res.json({
-      message: 'Credits deducted successfully',
-      balance: newBalance,
-    });
-  })
-);
+// router.post(
+//   '/credits/deduct',
+//   authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+//   asyncHandler(async (req, res) => {
+//     const userId = (req as any).user.id; // eslint-disable-line @typescript-eslint/no-explicit-any
+//     const { amount } = req.body;
+//     if (!amount || amount <= 0) {
+//       throw new AppError('Valid amount is required', 400);
+//     }
+//     const newBalance = await aiBillingService.deductCredit(userId, amount);
+//     res.json({
+//       message: 'Credits deducted successfully',
+//       balance: newBalance,
+//     });
+//   })
+// );
+// ===== END OF DEPRECATED CREDIT ROUTES =====
 
 // Trigger micropayment
 router.post(

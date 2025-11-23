@@ -1,0 +1,33 @@
+{
+  "network": "arbitrum-sepolia",
+  "chainId": 421614,
+  "deployer": "0x4D43399293B51C6Fde3D84D7ECC548477A05b84e",
+  "timestamp": "2024-11-24T00:00:00.000Z",
+  "contracts": {
+    "MerkleCommitStorage": {
+      "address": "0xD76dbc91351493CbE8230713e116F9e75ECBcE31",
+      "txHash": "0x7617221602cfd4abc1a04b45c50c63b78b3ac5dcbeac8e75106aafb6a7b7e870",
+      "blockNumber": 218261009,
+      "gasUsed": 1154464,
+      "verified": true
+    },
+    "EscrowAndYield": {
+      "address": "0x600405E9a1617972BeFa4f776E58A1Ca17592418",
+      "txHash": "0xd19065f17fadf11a1961ca3a19cc14934cc04de556e917d99191df0220a767fb",
+      "blockNumber": 218261017,
+      "gasUsed": 1525929,
+      "verified": true
+    },
+    "MilestoneManager": {
+      "address": "0x1D33EEF773b93a1d02c00676909F6be3fA5fC020",
+      "txHash": "0xf3789b494704fc9e6da1589043796bd9de13780a694b97cdb4ea98711f9619a9",
+      "blockNumber": 218261025,
+      "gasUsed": 2007472,
+      "verified": true
+    }
+  },
+  "totalGasUsed": 4687865,
+  "totalCostETH": "0.0000937573",
+  "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+  "explorerUrl": "https://sepolia.arbiscan.io"
+}

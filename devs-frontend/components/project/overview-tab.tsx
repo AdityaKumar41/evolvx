@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { SubmitToOnchainButton } from "@/components/project/submit-to-onchain-button";
 
 interface OverviewTabProps {
   project: any;
@@ -38,6 +39,13 @@ export function OverviewTab({
   totalMilestones,
 }: OverviewTabProps) {
   const router = useRouter();
+
+  // Calculate total milestone rewards
+  const totalReward =
+    project.milestones?.reduce(
+      (sum: number, m: any) => sum + (Number(m.totalReward) || 0),
+      0
+    ) || 0;
 
   return (
     <div className="space-y-6">
@@ -60,6 +68,16 @@ export function OverviewTab({
                 {project.description}
               </CardDescription>
             </div>
+            {/* Submit to Onchain Button - Only shown for DRAFT projects */}
+            <SubmitToOnchainButton
+              projectId={project.id}
+              projectStatus={project.status}
+              totalMilestoneReward={totalReward}
+              onSuccess={() => {
+                // Refresh page to show updated project status
+                router.refresh();
+              }}
+            />
           </div>
           {project.repositoryUrl && (
             <div className="flex items-center gap-2 mt-4">

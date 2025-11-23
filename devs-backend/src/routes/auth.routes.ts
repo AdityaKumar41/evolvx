@@ -387,7 +387,7 @@ router.post(
   '/onboarding',
   authenticate as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   asyncHandler(async (req, res) => {
-    const { role, name, bio, skills, organizationName } = req.body;
+    const { role, name, bio, skills, organizationName, walletAddress } = req.body;
 
     if (!role || !['SPONSOR', 'DEVELOPER', 'CONTRIBUTOR'].includes(role)) {
       throw new AppError('Valid role is required (SPONSOR, DEVELOPER, or CONTRIBUTOR)', 400);
@@ -405,6 +405,7 @@ router.post(
         bio: bio?.trim() || null,
         skills: skills || [],
         organizationName: organizationName?.trim() || null,
+        walletAddress: walletAddress || null, // Store RainbowKit wallet address
         onboardingCompleted: true,
       },
     });

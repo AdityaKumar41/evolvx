@@ -13,6 +13,7 @@ import {
   Wallet,
   GitBranch,
   TrendingUp,
+  Activity,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
@@ -70,6 +71,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         isActive: pathname?.startsWith("/contributions"),
       });
     }
+
+    // Add AI Usage page for all users
+    baseItems.push({
+      title: "AI Usage",
+      url: "/credits",
+      icon: Activity,
+      isActive: pathname?.startsWith("/credits"),
+    });
 
     return baseItems;
   }, [isSponsor, dashboardPath, pathname]);

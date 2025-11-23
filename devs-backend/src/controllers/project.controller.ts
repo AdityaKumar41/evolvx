@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler';
 import { publishEvent, KAFKA_TOPICS } from '../lib/kafka';
 import { inngest } from '../lib/inngest';
 import { logger } from '../utils/logger';
+import { escrowService } from '../services/escrow.service';
 
 export class ProjectController {
   /**
@@ -102,7 +103,49 @@ export class ProjectController {
       },
     });
 
-    res.json({ projects });
+    // If user is logged in, add access information for each project
+    let projectsWithAccess = projects;
+    if (currentUser) {
+      const projectIds = projects.map((p) => p.id);
+
+      // Get all join requests for this user
+      const joinRequests = await prisma.joinRequest.findMany({
+        where: {
+          userId: currentUser.id,
+          projectId: { in: projectIds },
+        },
+        select: {
+          projectId: true,
+          status: true,
+        },
+      });
+
+      // Create a map of projectId -> joinRequest status
+      const joinRequestMap = new Map(joinRequests.map((jr) => [jr.projectId, jr.status]));
+
+      projectsWithAccess = projects.map((project) => {
+        const isOwner = project.sponsorId === currentUser.id;
+        const joinRequestStatus = joinRequestMap.get(project.id);
+
+        // Determine if user has access
+        let hasAccess = isOwner;
+        if (project.repoType === 'PUBLIC') {
+          hasAccess = true;
+        } else if (project.repoType === 'PRIVATE_REQUEST') {
+          hasAccess = isOwner || joinRequestStatus === 'ACCEPTED';
+        } else if (project.repoType === 'PRIVATE_INVITE' || project.repoType === 'PRIVATE') {
+          hasAccess = isOwner;
+        }
+
+        return {
+          ...project,
+          hasAccess,
+          joinRequestStatus: joinRequestStatus || null,
+        };
+      });
+    }
+
+    res.json({ projects: projectsWithAccess });
   }
 
   /**
@@ -110,6 +153,7 @@ export class ProjectController {
    */
   static async getProjectById(req: AuthRequest, res: Response) {
     const { id } = req.params;
+    const currentUser = req.user;
 
     const project = await prisma.project.findUnique({
       where: { id },
@@ -145,7 +189,42 @@ export class ProjectController {
       throw new AppError('Project not found', 404);
     }
 
-    res.json({ project });
+    // Add access information if user is logged in
+    let projectWithAccess: any = project;
+    if (currentUser) {
+      const isOwner = project.sponsorId === currentUser.id;
+
+      // Check for join request
+      const joinRequest = await prisma.joinRequest.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: id,
+            userId: currentUser.id,
+          },
+        },
+        select: {
+          status: true,
+        },
+      });
+
+      // Determine if user has access
+      let hasAccess = isOwner;
+      if (project.repoType === 'PUBLIC') {
+        hasAccess = true;
+      } else if (project.repoType === 'PRIVATE_REQUEST') {
+        hasAccess = isOwner || joinRequest?.status === 'ACCEPTED';
+      } else if (project.repoType === 'PRIVATE_INVITE' || project.repoType === 'PRIVATE') {
+        hasAccess = isOwner;
+      }
+
+      projectWithAccess = {
+        ...project,
+        hasAccess,
+        joinRequestStatus: joinRequest?.status || null,
+      };
+    }
+
+    res.json({ project: projectWithAccess });
   }
 
   /**
@@ -459,5 +538,137 @@ export class ProjectController {
       message: 'Project funded successfully',
       funding,
     });
+  }
+
+  /**
+   * Submit project to onchain (Merkle tree generation + milestone registration)
+   */
+  static async submitProjectOnchain(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+
+    // Get project with milestones
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: {
+        milestones: {
+          include: {
+            subMilestones: true,
+          },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new AppError('Project not found', 404);
+    }
+
+    // Only sponsor can submit project onchain
+    if (project.sponsorId !== req.user!.id) {
+      throw new AppError('Only the project sponsor can submit the project onchain', 403);
+    }
+
+    // Only DRAFT projects can be submitted
+    if (project.status !== 'DRAFT') {
+      throw new AppError('Only DRAFT projects can be submitted onchain', 400);
+    }
+
+    // Check if there are milestones
+    if (project.milestones.length === 0) {
+      throw new AppError('Project must have at least one milestone before submitting onchain', 400);
+    }
+
+    try {
+      // Submit to onchain (generates Merkle tree and stores root)
+      const result = await escrowService.submitProjectOnchain(id);
+
+      logger.info(
+        `Project ${id} submitted onchain. Merkle root: ${result.merkleRoot}, Project hash: ${result.projectHash}`
+      );
+
+      res.json({
+        success: true,
+        message: 'Project submitted to onchain successfully',
+        merkleRoot: result.merkleRoot,
+        projectHash: result.projectHash,
+        txHash: result.txHash,
+      });
+    } catch (error) {
+      logger.error('Error submitting project onchain:', error);
+      throw new AppError(
+        'Failed to submit project onchain: ' +
+          (error instanceof Error ? error.message : 'Unknown error'),
+        500
+      );
+    }
+  }
+
+  /**
+   * Deposit funds to escrow for project
+   */
+  static async depositToEscrow(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const { amount, tokenAddress } = req.body;
+
+    if (!amount || parseFloat(amount) <= 0) {
+      throw new AppError('Invalid deposit amount', 400);
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id },
+    });
+
+    if (!project) {
+      throw new AppError('Project not found', 404);
+    }
+
+    // Only sponsor can deposit to escrow
+    if (project.sponsorId !== req.user!.id) {
+      throw new AppError('Only the project sponsor can deposit to escrow', 403);
+    }
+
+    // Project must be submitted onchain first
+    if (!project.onchainContractAddress) {
+      throw new AppError('Project must be submitted onchain before depositing to escrow', 400);
+    }
+
+    try {
+      const result = await escrowService.depositToEscrow(id, amount, tokenAddress);
+
+      logger.info(`Deposited ${amount} to escrow for project ${id}`);
+
+      res.json({
+        success: true,
+        message: 'Funds deposited to escrow successfully. Project is now ACTIVE.',
+        txHash: result.txHash,
+        escrowPoolId: result.escrowPoolId,
+        totalDeposited: result.totalDeposited,
+      });
+    } catch (error) {
+      logger.error('Error depositing to escrow:', error);
+      throw new AppError(
+        'Failed to deposit to escrow: ' +
+          (error instanceof Error ? error.message : 'Unknown error'),
+        500
+      );
+    }
+  }
+
+  /**
+   * Get escrow balance for project
+   */
+  static async getEscrowBalance(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+
+    try {
+      const balance = await escrowService.getEscrowBalance(id);
+
+      res.json({
+        success: true,
+        balance,
+      });
+    } catch (error) {
+      logger.error('Error getting escrow balance:', error);
+      throw error;
+    }
   }
 }

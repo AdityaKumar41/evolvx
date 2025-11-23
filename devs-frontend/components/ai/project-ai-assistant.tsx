@@ -19,6 +19,11 @@ import {
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
+import { useAuth } from "@/components/auth-provider";
+import { SessionKeyBanner } from "@/components/ai/session-key-banner";
+import { useSessionKeys } from "@/hooks/use-session-keys";
+import { useAAWallet } from "@/hooks/use-aa-wallet";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
   id: string;
@@ -39,6 +44,8 @@ export function ProjectAIAssistant({
   projectName,
   className,
 }: ProjectAIAssistantProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [conversationHistory, setConversationHistory] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +55,14 @@ export function ProjectAIAssistant({
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AA + Session Key integration
+  const { smartAccount, isLoading: isLoadingWallet } = useAAWallet({
+    userId: user?.id,
+    autoCreate: true,
+  });
+  const { hasActiveKey, activeSessionKey, fetchActiveSessionKey } =
+    useSessionKeys(user?.id, smartAccount?.smartAccountAddress);
 
   // Load conversation history on mount
   useEffect(() => {
@@ -113,6 +128,42 @@ export function ProjectAIAssistant({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && attachments.length === 0) || isLoading) return;
+
+    // Check for smart account
+    if (!smartAccount?.smartAccountAddress) {
+      toast.error("Smart account required", {
+        description: "Please complete onboarding to use AI features.",
+      });
+      return;
+    }
+
+    // Check for active session key
+    await fetchActiveSessionKey();
+    if (!hasActiveKey) {
+      toast.error("Session key required", {
+        description:
+          "Please register a session key to use AI features (no wallet popups!)",
+        action: {
+          label: "Register Now",
+          onClick: () =>
+            (window.location.href = "/billing/account-abstraction"),
+        },
+      });
+      return;
+    }
+
+    // Check session key expiry
+    if (activeSessionKey && new Date(activeSessionKey.expiresAt) < new Date()) {
+      toast.error("Session key expired", {
+        description: "Your session key has expired. Please renew it.",
+        action: {
+          label: "Renew Now",
+          onClick: () =>
+            (window.location.href = "/billing/account-abstraction"),
+        },
+      });
+      return;
+    }
 
     const userMessage = input.trim();
     const userAttachments = [...attachments];
@@ -238,6 +289,13 @@ export function ProjectAIAssistant({
                   })
                 );
               } else if (data.type === "done") {
+                // Invalidate micropayment history to show the new payment
+                if (data.micropaymentId) {
+                  queryClient.invalidateQueries({
+                    queryKey: ["micropaymentHistory"],
+                  });
+                }
+
                 // Handle special cases based on intent
                 if (detectedIntent === "milestone_generation") {
                   toast.info(
@@ -385,6 +443,11 @@ export function ProjectAIAssistant({
             <Trash2 className="w-4 h-4" />
           </Button>
         )}
+      </div>
+
+      {/* Session Key Banner */}
+      <div className="px-4 pt-3">
+        <SessionKeyBanner userId={user?.id} compact={hasActiveKey} />
       </div>
 
       {/* Messages */}

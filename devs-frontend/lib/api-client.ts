@@ -241,6 +241,40 @@ export const api = {
     claim: (id: string) => apiClient.post(`/api/contributions/${id}/claim`),
     getStatus: (id: string) => apiClient.get(`/api/contributions/${id}/status`),
   },
+
+  // Session Keys (Account Abstraction)
+  sessionKeys: {
+    register: (data: {
+      userId: string;
+      smartAccountAddress: string;
+      signature: string;
+      config: {
+        maxCreditsPerPrompt: number;
+        maxTotalSpend: number;
+        validDuration: number;
+      };
+    }) => apiClient.post("/api/session-keys/register", data),
+    list: () => apiClient.get("/api/session-keys/list"),
+    getActive: (smartAccountAddress: string) =>
+      apiClient.get("/api/session-keys/active", {
+        params: { smartAccountAddress },
+      }),
+    revoke: (data: {
+      sessionKeyId: string;
+      smartAccountAddress: string;
+      sessionKeyAddress: string;
+    }) => apiClient.post("/api/session-keys/revoke", data),
+  },
+
+  // Micropayments (Account Abstraction)
+  micropayments: {
+    calculateCost: (data: { promptText: string; estimatedTokens?: number }) =>
+      apiClient.post("/api/micropayment/calculate-cost", data),
+    getHistory: (limit?: number) =>
+      apiClient.get("/api/micropayment/history", {
+        params: { limit },
+      }),
+  },
 };
 
 export default apiClient;

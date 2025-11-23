@@ -9,22 +9,24 @@ datasource db {
 }
 
 model User {
-  id                     String               @id @default(uuid())
-  githubId               String               @unique
-  githubUsername         String               @unique
-  walletAddress          String?              @unique
-  email                  String?              @unique
-  role                   UserRole             @default(CONTRIBUTOR)
-  avatarUrl              String?
-  settings               Json?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
-  bio                    String?
-  name                   String?
-  onboardingCompleted    Boolean              @default(false)
-  organizationName       String?
-  skills                 String[]             @default([])
-  githubAccessToken      String?
+  id                      String               @id @default(uuid())
+  githubId                String               @unique
+  githubUsername          String               @unique
+  walletAddress           String?              @unique
+  smartAccountAddress     String?              @unique
+  sessionKeys             Json?
+  email                   String?              @unique
+  role                    UserRole             @default(CONTRIBUTOR)
+  avatarUrl               String?
+  settings                Json?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  bio                     String?
+  name                    String?
+  onboardingCompleted     Boolean              @default(false)
+  organizationName        String?
+  skills                  String[]             @default([])
+  githubAccessToken       String?
   githubAccessTokenExpiry DateTime?
   aiUsageLogs            AIUsageLog[]         @relation("UserAIUsage")
   chatConversations      ChatConversation[]
@@ -104,10 +106,13 @@ model Project {
   platformFeePct          Float              @default(2.5)
   totalPoints             Int                @default(0)
   totalTokenAmount        Decimal            @default(0) @db.Decimal(20, 8)
+  escrowTxHash            String?
+  escrowPoolId            String?
+  isEscrowFunded          Boolean            @default(false)
+  yieldEnabled            Boolean            @default(false)
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
   aiModel                 String             @default("gpt-4")
-  billingMode             BillingMode        @default(CREDIT)
   templateId              String?
   githubInstallationId    Int?
   tokenNetwork            String?            @default("arbitrum")
@@ -140,20 +145,24 @@ model Project {
 }
 
 model Milestone {
-  id            String          @id @default(uuid())
-  projectId     String
-  title         String
-  description   String?
-  points        Int             @default(0)
-  order         Int             @default(0)
-  status        MilestoneStatus @default(OPEN)
-  createdByAI   Boolean         @default(false)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  documents     Document[]
-  escrowPools   EscrowPool[]
-  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  subMilestones SubMilestone[]
+  id                      String          @id @default(uuid())
+  projectId               String
+  title                   String
+  description             String?
+  points                  Int             @default(0)
+  order                   Int             @default(0)
+  status                  MilestoneStatus @default(OPEN)
+  createdByAI             Boolean         @default(false)
+  merkleRoot              String?
+  merkleCommitTxHash      String?
+  isCommittedOnChain      Boolean         @default(false)
+  metadataUri             String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  documents               Document[]
+  escrowPools             EscrowPool[]
+  project                 Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subMilestones           SubMilestone[]
 
   @@index([projectId])
   @@index([status])
@@ -283,8 +292,13 @@ model EscrowPool {
   id              String     @id @default(uuid())
   projectId       String
   balance         Decimal    @db.Decimal(20, 8)
+  totalAmount     Decimal    @default(0) @db.Decimal(20, 8)
+  lockedAmount    Decimal    @default(0) @db.Decimal(20, 8)
+  yieldGenerated  Decimal    @default(0) @db.Decimal(20, 8)
   yieldMode       Boolean    @default(false)
   protocol        String?
+  tokenAddress    String?
+  status          String     @default("ACTIVE")
   depositTx       String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -790,10 +804,60 @@ enum NotificationType {
   PROJECT_FUNDED
 }
 
-enum BillingMode {
-  CREDIT
-  MICROPAYMENT
-  HYBRID
+model AIMicropayment {
+  id                String              @id @default(uuid())
+  userId            String
+  smartAccountAddress String
+  sessionKeyAddress String?
+  userOpHash        String?             @unique
+  transactionHash   String?             @unique
+  credits           Decimal             @db.Decimal(20, 8)
+  costInWei         String
+  platformFeeCredits Decimal            @default(0) @db.Decimal(20, 8)
+  totalCredits      Decimal             @db.Decimal(20, 8)
+  status            MicropaymentStatus  @default(PENDING)
+  failureReason     String?
+  promptComplexity  PromptComplexity
+  promptText        String?
+  aiResponse        String?
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  settledAt         DateTime?
+
+  @@index([userId])
+  @@index([smartAccountAddress])
+  @@index([sessionKeyAddress])
+  @@index([userOpHash])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ai_micropayments")
+}
+
+model SessionKey {
+  id                  String   @id @default(uuid())
+  userId              String
+  smartAccountAddress String
+  publicKey           String   @unique
+  encryptedPrivateKey String
+  maxCreditsPerPrompt Decimal  @db.Decimal(20, 8)
+  maxTotalSpend       Decimal  @db.Decimal(20, 8)
+  totalSpent          Decimal  @default(0) @db.Decimal(20, 8)
+  expiresAt           DateTime
+  active              Boolean  @default(true)
+  registeredOnChain   Boolean  @default(false)
+  onChainTxHash       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  revokedAt           DateTime?
+  metadata            Json?
+
+  @@index([userId])
+  @@index([smartAccountAddress])
+  @@index([publicKey])
+  @@index([active])
+  @@index([expiresAt])
+  @@map("session_keys")
 }
 
 enum MergeStatus {
@@ -838,4 +902,18 @@ enum RepoAnalysisStatus {
   IN_PROGRESS
   COMPLETED
   FAILED
+}
+
+enum MicropaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PromptComplexity {
+  SIMPLE
+  MEDIUM
+  COMPLEX
+  VERY_COMPLEX
 }
